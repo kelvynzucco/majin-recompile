@@ -4,6 +4,7 @@
 #include "equivalent_counter.h"
 #include <rex/cvar.h>
 #include <rex/logging.h>
+#include <rex/audio/audio_driver.h>
 #include <bit>
 #include <cmath>
 
@@ -26,6 +27,8 @@ float ReadFloat(uint8_t* base, uint32_t address) {
 }
 
 extern bool IsBackOrTabHeld();
+extern float GetCutsceneSpeedMultiplier();
+extern bool IsInGameCutsceneOrDialogue(uint8_t* base, uint32_t object);
 
 // Below 0x821C0000: USA address is identical to PAL (0x82162238, caller LR 0x821616EC)
 REX_EXTERN(__imp__sub_82162238);
@@ -38,10 +41,17 @@ REX_EXTERN(sub_82162238) {
   const float rate = ReadFloat(base, object + kRate);
   float ratio = ReadFloat(base, object + kRatio);
 
-  if (IsBackOrTabHeld() && std::isfinite(ratio)) {
-    ratio *= 4.0f;
+  const bool in_scene = IsInGameCutsceneOrDialogue(base, object);
+  const bool turbo = in_scene && IsBackOrTabHeld();
+
+  if (turbo && std::isfinite(ratio)) {
+    const float speed_mult = GetCutsceneSpeedMultiplier();
+    ratio *= speed_mult;
     REX_STORE_U32(object + kRatio, std::bit_cast<uint32_t>(ratio));
     REX_STORE_U32(object + 0x150F4, std::bit_cast<uint32_t>(ratio / rate));
+    rex::audio::SetPlaybackFrequencyRatio(speed_mult);
+  } else {
+    rex::audio::SetPlaybackFrequencyRatio(1.0f);
   }
 
   if (!Enabled()) return;

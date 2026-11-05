@@ -9,6 +9,9 @@
 REXCVAR_DEFINE_BOOL(majin_skip_cutscenes, true, "Gameplay",
     "Allow skipping in-game cutscenes and dialogue by holding Select/Back on controller or Tab on keyboard");
 
+REXCVAR_DEFINE_INT32(majin_cutscene_speed, 4, "Gameplay",
+    "In-game cutscene and dialogue fast-forward speed multiplier (2, 4, 6, 8)");
+
 namespace {
 
 bool Enabled() {
@@ -17,6 +20,47 @@ bool Enabled() {
 }
 
 } // namespace
+
+float GetCutsceneSpeedMultiplier() {
+  if (!Enabled()) return 1.0f;
+  const int32_t spd = rex::cvar::Query<int32_t>("majin_cutscene_speed");
+  if (spd < 2) return 2.0f;
+  if (spd > 16) return 16.0f;
+  return static_cast<float>(spd);
+}
+
+bool IsInGameCutsceneOrDialogue(uint8_t* base, uint32_t object) {
+  if (!base || !object || object < 0x10000 || object > 0x8FFFFFFF) return false;
+
+  // 1. Message / Dialogue active check (engine + 0x15140)
+  const uint32_t msg_mgr = REX_LOAD_U32(object + 0x15140);
+  if (msg_mgr >= 0x10000 && msg_mgr < 0x8FFFFFFF) {
+    const uint32_t msg_active = REX_LOAD_U32(msg_mgr + 168); // 0xA8
+    if (msg_active == 1) return true;
+  }
+
+  // 2. 3D Cutscene / Demo active check (engine + 0x15144)
+  const uint32_t demo_mgr = REX_LOAD_U32(object + 0x15144);
+  if (demo_mgr >= 0x10000 && demo_mgr < 0x8FFFFFFF) {
+    const uint32_t demo_obj = REX_LOAD_U32(demo_mgr);
+    if (demo_obj >= 0x10000 && demo_obj < 0x8FFFFFFF) {
+      const uint32_t demo_active = REX_LOAD_U32(demo_obj + 120);
+      if (demo_active != 0) return true;
+    }
+  }
+
+  // 3. Cinematic Camera event check (engine + 0x15128)
+  const uint32_t cam_mgr = REX_LOAD_U32(object + 0x15128);
+  if (cam_mgr >= 0x10000 && cam_mgr < 0x8FFFFFFF) {
+    const uint32_t cam_event = REX_LOAD_U32(cam_mgr + 0x51C0);
+    if (cam_event >= 0x10000 && cam_event < 0x8FFFFFFF) {
+      const uint32_t cam_active = REX_LOAD_U32(cam_event + 5936);
+      if (cam_active != 0) return true;
+    }
+  }
+
+  return false;
+}
 
 bool IsBackOrTabHeld() {
   if (!Enabled()) return false;

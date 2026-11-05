@@ -12,6 +12,7 @@ param(
     $IncludeHardware = $false,
     [ValidateSet('Original','60')][string]$FrameRateMode = '60',
     $SkipCutscenes = $true,
+    [ValidateRange(2,16)][int]$CutsceneSpeed = 4,
     [string]$GameDataRoot = 'C:\Users\kelvy\Desktop\Recomp\game-data-usa',
     [switch]$Preview
 )
@@ -97,6 +98,7 @@ if ($isRecordPerf) { $launchArgs += "--perf_log_csv=$logPath.performance.csv" }
 $launchArgs += "--majin_60fps=$(($FrameRateMode -eq '60').ToString().ToLowerInvariant())"
 $isSkipCutscenes = ConvertTo-Bool $SkipCutscenes
 $launchArgs += "--majin_skip_cutscenes=$($isSkipCutscenes.ToString().ToLowerInvariant())"
+$launchArgs += "--majin_cutscene_speed=$CutsceneSpeed"
 
 if ($Preview) {
     Write-Output "PREVIEW OK: $exe $($launchArgs -join ' ')"

@@ -109,13 +109,46 @@ $frameRate.Enabled = $has60
 
 $renderingPath = Add-Choice 'Rendering path' 385 @('Default','ROV Compatibility')
 $renderingPath.SelectedIndex = 1 # Default ROV for NVIDIA/AMD EDRAM compatibility
-$cutsceneSkip = Add-Choice 'Skip cutscenes' 425 @('Hold Select / Tab','Disabled')
-$cutsceneSkip.SelectedIndex = 0 # Default Enabled
+
+Add-Label 'Skip cutscenes' 425
+$cutsceneEnabled = New-Object System.Windows.Forms.CheckBox
+$cutsceneEnabled.Text = 'Active'
+$cutsceneEnabled.Checked = $true
+$cutsceneEnabled.SetBounds(187,425,75,26)
+$cutsceneEnabled.ForeColor = $form.ForeColor
+$cutsceneEnabled.BackColor = [System.Drawing.Color]::Transparent
+$form.Controls.Add($cutsceneEnabled)
+
+$cutsceneSlider = New-Object System.Windows.Forms.TrackBar
+$cutsceneSlider.SetBounds(262,422,110,30)
+$cutsceneSlider.Minimum = 0
+$cutsceneSlider.Maximum = 3
+$cutsceneSlider.Value = 1 # Default 4x
+$cutsceneSlider.TickStyle = 'None'
+$cutsceneSlider.BackColor = [System.Drawing.Color]::FromArgb(20,29,28)
+$form.Controls.Add($cutsceneSlider)
+
+$cutsceneSpeedLabel = New-Object System.Windows.Forms.Label
+$cutsceneSpeedLabel.SetBounds(377,426,40,24)
+$cutsceneSpeedLabel.ForeColor = [System.Drawing.Color]::FromArgb(236,225,173)
+$cutsceneSpeedLabel.BackColor = [System.Drawing.Color]::Transparent
+$cutsceneSpeedLabel.Text = '4x'
+$form.Controls.Add($cutsceneSpeedLabel)
+
+$speedMap = @(2, 4, 6, 8)
+$cutsceneSlider.Add_ValueChanged({
+    $cutsceneSpeedLabel.Text = "$($speedMap[$cutsceneSlider.Value])x"
+})
+$cutsceneEnabled.Add_CheckedChanged({
+    $cutsceneSlider.Enabled = $cutsceneEnabled.Checked
+    $cutsceneSpeedLabel.Enabled = $cutsceneEnabled.Checked
+})
 
 $renderTooltip = New-Object System.Windows.Forms.ToolTip
 $renderTooltip.SetToolTip($frameRate,'60 FPS mode with normalized title timer, or Original 30 FPS.')
 $renderTooltip.SetToolTip($renderingPath,'ROV Compatibility is recommended for NVIDIA/AMD GPUs so 3D EDRAM scenes render properly.')
-$renderTooltip.SetToolTip($cutsceneSkip,'Allows skipping in-game 3D cutscenes directly to the end by holding Select/Back on controller or Tab on keyboard.')
+$renderTooltip.SetToolTip($cutsceneEnabled,'Hold Select/Back on controller or Tab on keyboard during in-game cutscenes or dialogues to fast-forward. Does not affect normal gameplay or pre-rendered movies.')
+$renderTooltip.SetToolTip($cutsceneSlider,'In-game cutscene and dialogue fast-forward speed multiplier (2x, 4x, 6x, 8x).')
 
 $inputMode = Add-Choice 'Input' 465 @('Controller','Keyboard + mouse')
 $controlHelp = New-Object System.Windows.Forms.Button
@@ -230,7 +263,13 @@ if (Test-Path -LiteralPath $settingsPath) {
         if ($saved.RenderScale -in @(1,2,3)) { $scale.SelectedIndex = [int]$saved.RenderScale - 1 }
         if ($has60) { $frameRate.SelectedIndex = if ($saved.FrameRateMode -eq '60') { 1 } else { 0 } }
         $renderingPath.SelectedIndex = if ($saved.RenderingPath -eq 'Default') { 0 } else { 1 }
-        if ($saved.SkipCutscenes -is [bool]) { $cutsceneSkip.SelectedIndex = if ($saved.SkipCutscenes) { 0 } else { 1 } }
+        if ($saved.SkipCutscenes -is [bool]) { $cutsceneEnabled.Checked = $saved.SkipCutscenes }
+        if ($saved.CutsceneSpeed -in @(2,4,6,8)) {
+            $speedIdx = @(2,4,6,8).IndexOf([int]$saved.CutsceneSpeed)
+            if ($speedIdx -ge 0) { $cutsceneSlider.Value = $speedIdx }
+        }
+        $cutsceneSlider.Enabled = $cutsceneEnabled.Checked
+        $cutsceneSpeedLabel.Enabled = $cutsceneEnabled.Checked
         $effect.SelectedIndex = if ($saved.PostEffect -eq 'fxaa') { 1 } else { 0 }
         if ($saved.RecordPerformance -is [bool]) { $script:recordPerformance = $saved.RecordPerformance }
         if ($saved.InputMode -eq 'KeyboardMouse') { $inputMode.SelectedIndex = 1 } else { $inputMode.SelectedIndex = 0 }
@@ -273,7 +312,8 @@ $play.Add_Click({
             PostEffect = (@('none','fxaa')[$effect.SelectedIndex])
             FrameRateMode = (@('Original','60')[$frameRate.SelectedIndex])
             RenderingPath = (@('Default','ROV')[$renderingPath.SelectedIndex])
-            SkipCutscenes = ($cutsceneSkip.SelectedIndex -eq 0)
+            SkipCutscenes = $cutsceneEnabled.Checked
+            CutsceneSpeed = $speedMap[$cutsceneSlider.Value]
             InputMode = (@('Controller','KeyboardMouse')[$inputMode.SelectedIndex])
             MouseSensitivity = $script:mouseSensitivity
             RecordPerformance = $script:recordPerformance
