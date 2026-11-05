@@ -25,16 +25,27 @@ float ReadFloat(uint8_t* base, uint32_t address) {
 }
 }
 
+extern bool IsBackOrTabHeld();
+
 // Below 0x821C0000: USA address is identical to PAL (0x82162238, caller LR 0x821616EC)
 REX_EXTERN(__imp__sub_82162238);
 REX_EXTERN(sub_82162238) {
   const uint32_t object = ctx.r3.u32;
   const bool caller = uint32_t(ctx.lr) == 0x821616EC;
   __imp__sub_82162238(ctx, base);
-  if (!Enabled() || !caller || !Span(object, kRate + 4)) return;
+  if (!caller || !Span(object, kRate + 4)) return;
+
   const float rate = ReadFloat(base, object + kRate);
-  const float ratio = ReadFloat(base, object + kRatio);
-  main_object = rate == 30.0f && std::isfinite(ratio) && ratio >= 0 && ratio <= 8
+  float ratio = ReadFloat(base, object + kRatio);
+
+  if (IsBackOrTabHeld() && std::isfinite(ratio)) {
+    ratio *= 8.0f;
+    REX_STORE_U32(object + kRatio, std::bit_cast<uint32_t>(ratio));
+    REX_STORE_U32(object + 0x150F4, std::bit_cast<uint32_t>(ratio / rate));
+  }
+
+  if (!Enabled()) return;
+  main_object = rate == 30.0f && std::isfinite(ratio) && ratio >= 0 && ratio <= 64
                     ? object : 0;
   static const bool announced = [] {
     REXLOG_INFO("[Majin 60 FPS USA] opt-in mode; engine time calculation unchanged; title idle timer normalized");

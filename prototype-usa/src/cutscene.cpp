@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Majin and the Forsaken Kingdom (USA 0.0.0.2)
-// In-game 3D Cutscene Skip Hook
+// In-game 3D Cutscene & Dialogue Skip / Fast-Forward Hook
 #include <windows.h>
 #include "generated/default/majin_pch.h"
 #include <rex/cvar.h>
 #include <rex/logging.h>
 
 REXCVAR_DEFINE_BOOL(majin_skip_cutscenes, true, "Gameplay",
-    "Allow skipping in-game 3D cutscenes by holding Select/Back on controller or Tab on keyboard");
+    "Allow skipping in-game cutscenes and dialogue by holding Select/Back on controller or Tab on keyboard");
 
 namespace {
 
@@ -15,6 +15,8 @@ bool Enabled() {
   static const bool enabled = rex::cvar::Query<bool>("majin_skip_cutscenes");
   return enabled;
 }
+
+} // namespace
 
 bool IsBackOrTabHeld() {
   if (!Enabled()) return false;
@@ -50,7 +52,7 @@ bool IsBackOrTabHeld() {
       } state{};
       for (DWORD i = 0; i < 4; ++i) {
         if (pfnGetState(i, &state) == 0) {
-          if (state.Gamepad.wButtons & 0x0020) { // XINPUT_GAMEPAD_BACK
+          if (state.Gamepad.wButtons & 0x0020) { // XINPUT_GAMEPAD_BACK (Select)
             return true;
           }
         }
@@ -61,15 +63,16 @@ bool IsBackOrTabHeld() {
   return false;
 }
 
-// Require holding for ~15 consecutive calls to avoid accidental triggers
-bool ShouldSkipCutscene() {
+namespace {
+
+bool ShouldSkip() {
   static int hold_frames = 0;
   static bool announced = false;
   if (IsBackOrTabHeld()) {
     hold_frames++;
-    if (hold_frames >= 15) {
+    if (hold_frames >= 5) { // Responsive skip after holding ~5 frames (~0.1s)
       if (!announced) {
-        REXLOG_INFO("[Majin Cutscene Skip] In-game 3D cutscene skipped by user request (Select/Tab held)");
+        REXLOG_INFO("[Majin Skip] In-game scene/dialogue skip active (Select/Tab held)");
         announced = true;
       }
       return true;
@@ -83,30 +86,74 @@ bool ShouldSkipCutscene() {
 
 } // namespace
 
-// 1. DEMO_END_CHECK (USA: 0x821836C0)
+// =======================================================================
+// 1. DIALOGUE / MESSAGE SYSTEM HOOKS (e.g. Talking to the Rat / NPC)
+// =======================================================================
+
+// CHECK_END_MESSAGE (USA: 0x82183040)
+// Called by scenario interpreter while a dialogue box is active.
+REX_EXTERN(__imp__sub_82183040);
+REX_EXTERN(sub_82183040) {
+  if (ShouldSkip()) {
+    ctx.r3.u64 = 1; // Signal dialogue message has finished!
+    return;
+  }
+  __imp__sub_82183040(ctx, base);
+}
+
+// playMessageGetEnd (USA: 0x822355C8)
+// Queries if message playback has finished.
+REX_EXTERN(__imp__sub_822355C8);
+REX_EXTERN(sub_822355C8) {
+  if (ShouldSkip()) {
+    ctx.r3.u64 = 1; // Signal message end
+    return;
+  }
+  __imp__sub_822355C8(ctx, base);
+}
+
+// =======================================================================
+// 2. CAMERA SCENARIO EVENT HOOKS
+// =======================================================================
+
+// CAMERA_EVENT_CHECK (USA: 0x82181050)
+REX_EXTERN(__imp__sub_82181050);
+REX_EXTERN(sub_82181050) {
+  if (ShouldSkip()) {
+    ctx.r3.u64 = 1; // Signal camera event has finished!
+    return;
+  }
+  __imp__sub_82181050(ctx, base);
+}
+
+// =======================================================================
+// 3. 3D CUTSCENE (DEMO) SYSTEM HOOKS
+// =======================================================================
+
+// DEMO_END_CHECK (USA: 0x821836C0)
 REX_EXTERN(__imp__sub_821836C0);
 REX_EXTERN(sub_821836C0) {
-  if (ShouldSkipCutscene()) {
+  if (ShouldSkip()) {
     ctx.r3.u64 = 1; // Signal demo end to scenario script
     return;
   }
   __imp__sub_821836C0(ctx, base);
 }
 
-// 2. DEMO_CAMERA_END_CHECK (USA: 0x82183778)
+// DEMO_CAMERA_END_CHECK (USA: 0x82183778)
 REX_EXTERN(__imp__sub_82183778);
 REX_EXTERN(sub_82183778) {
-  if (ShouldSkipCutscene()) {
+  if (ShouldSkip()) {
     ctx.r3.u64 = 1; // Signal camera demo end
     return;
   }
   __imp__sub_82183778(ctx, base);
 }
 
-// 3. setDemoGetEnd (USA: 0x822351D0)
+// setDemoGetEnd (USA: 0x822351D0)
 REX_EXTERN(__imp__sub_822351D0);
 REX_EXTERN(sub_822351D0) {
-  if (ShouldSkipCutscene()) {
+  if (ShouldSkip()) {
     ctx.r3.u64 = 1; // Signal demo get end to script task
     return;
   }
