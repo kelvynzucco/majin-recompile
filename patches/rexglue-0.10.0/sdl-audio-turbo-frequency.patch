@@ -1,0 +1,66 @@
+diff --git a/src/audio/sdl/sdl_audio_driver.cpp b/src/audio/sdl/sdl_audio_driver.cpp
+index 20a2cd8..c12adb6 100644
+--- a/src/audio/sdl/sdl_audio_driver.cpp
++++ b/src/audio/sdl/sdl_audio_driver.cpp
+@@ -24,6 +24,11 @@
+ #include <rex/perf/counter.h>
+ #include <SDL3/SDL.h>
+ 
++#if defined(_WIN32)
++#define WIN32_LEAN_AND_MEAN
++#include <windows.h>
++#endif
++
+ REXCVAR_DEFINE_BOOL(audio_mute, false, "Audio", "Mute audio output");
+ 
+ namespace rex::audio::sdl {
+@@ -165,6 +170,49 @@ void SDLAudioDriver::SDLCallback(void* userdata, SDL_AudioStream* stream, int ad
+     REXAPU_ERROR("SDLAudioDriver::SDLCallback called with nullptr.");
+     return;
+   }
++
++#if defined(_WIN32)
++  static bool s_was_turbo = false;
++  bool turbo = ((GetAsyncKeyState(VK_TAB) & 0x8000) != 0 || (GetAsyncKeyState(VK_BACK) & 0x8000) != 0);
++  if (!turbo) {
++    static HMODULE s_xinput = []() -> HMODULE {
++      HMODULE h = LoadLibraryA("xinput1_4.dll");
++      if (!h) h = LoadLibraryA("xinput1_3.dll");
++      if (!h) h = LoadLibraryA("xinput9_1_0.dll");
++      return h;
++    }();
++    if (s_xinput) {
++      typedef DWORD (WINAPI *PFN_GetState)(DWORD, void*);
++      static auto pfn = (PFN_GetState)GetProcAddress(s_xinput, "XInputGetState");
++      if (pfn) {
++        struct { DWORD pkt; struct { WORD wButtons; BYTE lt, rt; SHORT lx, ly, rx, ry; } pad; } st{};
++        for (DWORD i = 0; i < 4; ++i) {
++          if (pfn(i, &st) == 0 && (st.pad.wButtons & 0x0020)) {
++            turbo = true;
++            break;
++          }
++        }
++      }
++    }
++  }
++
++  static bool s_has_cvar = false;
++  static bool s_cvar_queried = false;
++  if (!s_cvar_queried) {
++    if (rex::cvar::GetFlagInfo("majin_skip_cutscenes")) {
++      s_has_cvar = true;
++      s_cvar_queried = true;
++    }
++  }
++  if (s_has_cvar && !rex::cvar::Query<bool>("majin_skip_cutscenes")) {
++    turbo = false;
++  }
++
++  if (turbo != s_was_turbo) {
++    s_was_turbo = turbo;
++    SDL_SetAudioStreamFrequencyRatio(stream, turbo ? 4.0f : 1.0f);
++  }
++#endif
+   const auto driver = static_cast<SDLAudioDriver*>(userdata);
+   const int sample_count =
+       static_cast<int>(channel_samples_ * std::max<uint8_t>(driver->sdl_device_channels_, 1));

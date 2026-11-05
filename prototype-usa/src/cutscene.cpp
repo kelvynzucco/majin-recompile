@@ -87,47 +87,7 @@ bool ShouldSkip() {
 } // namespace
 
 // =======================================================================
-// 1. DIALOGUE / MESSAGE SYSTEM HOOKS (e.g. Talking to the Rat / NPC)
-// =======================================================================
-
-// CHECK_END_MESSAGE (USA: 0x82183040)
-// Called by scenario interpreter while a dialogue box is active.
-REX_EXTERN(__imp__sub_82183040);
-REX_EXTERN(sub_82183040) {
-  if (ShouldSkip()) {
-    ctx.r3.u64 = 1; // Signal dialogue message has finished!
-    return;
-  }
-  __imp__sub_82183040(ctx, base);
-}
-
-// playMessageGetEnd (USA: 0x822355C8)
-// Queries if message playback has finished.
-REX_EXTERN(__imp__sub_822355C8);
-REX_EXTERN(sub_822355C8) {
-  if (ShouldSkip()) {
-    ctx.r3.u64 = 1; // Signal message end
-    return;
-  }
-  __imp__sub_822355C8(ctx, base);
-}
-
-// =======================================================================
-// 2. CAMERA SCENARIO EVENT HOOKS
-// =======================================================================
-
-// CAMERA_EVENT_CHECK (USA: 0x82181050)
-REX_EXTERN(__imp__sub_82181050);
-REX_EXTERN(sub_82181050) {
-  if (ShouldSkip()) {
-    ctx.r3.u64 = 1; // Signal camera event has finished!
-    return;
-  }
-  __imp__sub_82181050(ctx, base);
-}
-
-// =======================================================================
-// 3. 3D CUTSCENE (DEMO) SYSTEM HOOKS
+// 3D CUTSCENE (DEMO) SYSTEM HOOKS
 // =======================================================================
 
 // DEMO_END_CHECK (USA: 0x821836C0)

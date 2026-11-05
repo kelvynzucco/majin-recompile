@@ -39,7 +39,7 @@ REX_EXTERN(sub_82162238) {
   float ratio = ReadFloat(base, object + kRatio);
 
   if (IsBackOrTabHeld() && std::isfinite(ratio)) {
-    ratio *= 8.0f;
+    ratio *= 4.0f;
     REX_STORE_U32(object + kRatio, std::bit_cast<uint32_t>(ratio));
     REX_STORE_U32(object + 0x150F4, std::bit_cast<uint32_t>(ratio / rate));
   }
