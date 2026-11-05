@@ -74,3 +74,17 @@ This document tracks **all verified technical milestones**, **failures and disca
 | `runtime-usa-20261105-183229` (1st Default Test) | `1x Native` | `117` | `24,932` | `99.60%` | **24** |
 | `runtime-usa-20261105-185837` (2nd Test — 8 min) | `2x Scale + FXAA` | `214` | `28,598` | `99.58%` | **10** |
 | `runtime-usa-20261105-190704` (3rd Test — 2 min) | `1x Native` | **`252`** | `7,192` | **`99.93%`** | **2** |
+
+---
+
+## Phase 8: In-Game 3D Cutscene Skip Hook
+
+- **Problem:** Unlike 2D FMVs (which supported holding `Back` to skip), in-engine 3D cutscenes and dialogues could not be skipped in the original game.
+- **Implementation:**
+  - Added [`prototype-usa/src/cutscene.cpp`](file:///C:/Users/kelvy/Desktop/Recomp/prototype-usa/src/cutscene.cpp) intercepting scenario demo end checks:
+    - `DEMO_END_CHECK` (`0x821836C0`)
+    - `DEMO_CAMERA_END_CHECK` (`0x82183778`)
+    - `setDemoGetEnd` (`0x822351D0`)
+  - Defined CVAR `majin_skip_cutscenes` (default `true`).
+  - Holding `Select/Back` on controller (`0x0020`) or `Tab` on keyboard for ~15 frames (~0.5s) immediately triggers `return 1` on demo completion checks, causing the scenario engine to jump straight to post-demo cleanup (`DEMO_PLAY_POST_FUNCTION`) and restore gameplay control.
+  - Added Launcher GUI option **"Skip cutscenes"** (`Hold Select / Tab` vs `Disabled`) and integrated with [`run-usa.ps1`](file:///C:/Users/kelvy/Desktop/Recomp/scripts/run-usa.ps1).

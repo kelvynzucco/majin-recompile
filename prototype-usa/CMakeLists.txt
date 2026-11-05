@@ -15,6 +15,7 @@ set(MAJIN_SOURCES
     src/main.cpp
     src/diagnostics.cpp
     src/timing.cpp
+    src/cutscene.cpp
 )
 
 if(WIN32)

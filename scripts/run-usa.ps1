@@ -1,94 +1,113 @@
 param(
-    [ValidateSet('Default','ROV')][string]$RenderingPath = 'Default',
-    [ValidateSet('Controller','KeyboardMouse')][string]$InputProfile = 'Controller',
-    [ValidateSet('Original','60')][string]$FrameRate = '60',
-    [ValidateSet('720p','1080p','1440p','4K')][string]$Resolution = '1080p',
-    [ValidateSet('1x','2x','3x')][string]$RenderScale = '1x',
-    [switch]$Fxaa,
-    [switch]$Fullscreen,
-    [ValidateSet('Debug','Release')][string]$Configuration = 'Release'
+    [ValidateSet('Debug','Release')][string]$Configuration = 'Release',
+    [ValidateSet('1280x720','1920x1080','2560x1440','3840x2160')][string]$WindowSize = '1280x720',
+    $Fullscreen = $false,
+    $VSync = $true,
+    [ValidateRange(1,3)][int]$RenderScale = 1,
+    [ValidateSet('none','fxaa')][string]$PostEffect = 'none',
+    [ValidateSet('Default','ROV')][string]$RenderingPath = 'ROV',
+    [ValidateSet('Controller','KeyboardMouse')][string]$InputMode = 'KeyboardMouse',
+    [ValidateRange(0.01,10)][double]$MouseSensitivity = 1.0,
+    $RecordPerformance = $true,
+    $IncludeHardware = $false,
+    [ValidateSet('Original','60')][string]$FrameRateMode = '60',
+    $SkipCutscenes = $true,
+    [string]$GameDataRoot = 'C:\Users\kelvy\Desktop\Recomp\game-data-usa',
+    [switch]$Preview
 )
-
 $ErrorActionPreference = 'Stop'
-$root = Split-Path $PSScriptRoot -Parent
-$binDir = Join-Path $root "prototype-usa\out\build\win-amd64-$($Configuration.ToLower())"
-$exe = Join-Path $binDir 'majin.exe'
 
+function ConvertTo-Bool($val) {
+    if ($val -is [bool]) { return $val }
+    $s = "$val".Trim().ToLowerInvariant().TrimStart('$')
+    return ($s -eq 'true' -or $s -eq '1')
+}
+
+$isFullscreen = ConvertTo-Bool $Fullscreen
+$isVSync = ConvertTo-Bool $VSync
+$isRecordPerf = ConvertTo-Bool $RecordPerformance
+
+$projectRoot = 'C:\Users\kelvy\Desktop\Recomp'
+New-Item -ItemType Directory -Force -Path (Join-Path $projectRoot 'reports') | Out-Null
+
+if (-not (Test-Path (Join-Path $GameDataRoot 'default.xex'))) {
+    throw "default.xex not found in $GameDataRoot"
+}
+
+$build = Join-Path $projectRoot ('prototype-usa\out\build\win-amd64-' + $Configuration.ToLower())
+$exe = Join-Path $build 'majin.exe'
 if (-not (Test-Path $exe)) {
-    throw "Executable not found at $exe. Run scripts/build-usa.ps1 first."
+    throw "Build majin.exe before running ($exe)."
 }
 
-$gameData = Join-Path $root 'game-data-usa'
-if (-not (Test-Path (Join-Path $gameData 'default.xex'))) {
-    throw "Game data not found in $gameData. Run scripts/extract-iso.ps1 first."
-}
+$sessionRoot = Join-Path $projectRoot 'private\runtime-usa'
+New-Item -ItemType Directory -Force -Path $sessionRoot | Out-Null
 
-# Resolve backend path and cache root
-$backendPath = if ($RenderingPath -eq 'ROV') { 'rov' } else { '' }
-$cacheRoot = Join-Path $root "private\runtime-usa\cache\d3d12-$($RenderingPath.ToLower())"
-$userData = Join-Path $root 'private\runtime-usa\user'
-$reportsDir = Join-Path $root 'reports'
-New-Item -ItemType Directory -Force -Path $cacheRoot, $userData, $reportsDir | Out-Null
+$cacheKey = 'd3d12-' + $RenderingPath.ToLower() + '/' + $Configuration.ToLower()
+$cacheRoot = Join-Path $sessionRoot ('cache/' + $cacheKey)
+$metadataRoot = Join-Path $sessionRoot ('metadata/' + $cacheKey)
+New-Item -ItemType Directory -Force -Path $cacheRoot, $metadataRoot, "$sessionRoot/user" | Out-Null
 
-$timestamp = Get-Date -Format 'yyyyMMdd-HHmmss'
-$logFile = Join-Path $reportsDir "runtime-usa-$timestamp.log"
+$renderTarget = if ($RenderingPath -eq 'ROV') { 'rov' } else { '' }
+$allowInvalid = 'true'
+$logPath = Join-Path $projectRoot ('reports\runtime-usa-' + (Get-Date -Format 'yyyyMMdd-HHmmss') + '.log')
 
-$appArgs = @(
-    "--game_data_root=$gameData",
-    "--cache_root=$cacheRoot",
-    "--user_data_root=$userData",
-    "--log_file=$logFile",
-    "--gpu_allow_invalid_fetch_constants=true",
-    "--d3d12_readback_resolve=false",
-    "--vsync=false"
+$dimensions = $WindowSize.Split('x')
+$launchArgs = @(
+    '--gpu_plugin', 'xenos',
+    '--game_data_root', $GameDataRoot,
+    '--user_data_root', "$sessionRoot/user",
+    '--cache_root', $cacheRoot,
+    '--metadata_root', $metadataRoot,
+    '--log_file', $logPath,
+    "--window_width=$($dimensions[0])",
+    "--window_height=$($dimensions[1])",
+    "--fullscreen=$($isFullscreen.ToString().ToLowerInvariant())",
+    "--vsync=$($isVSync.ToString().ToLowerInvariant())",
+    "--resolution_scale=$RenderScale",
+    "--swap_post_effect=$PostEffect",
+    "--render_target_path_d3d12=$renderTarget",
+    "--gpu_allow_invalid_fetch_constants=$allowInvalid"
 )
 
-if ($backendPath) {
-    $appArgs += "--render_target_path_d3d12=$backendPath"
+$mnk = ($InputMode -eq 'KeyboardMouse').ToString().ToLowerInvariant()
+$launchArgs += @("--mnk_mode=$mnk", "--mnk_mouse=$mnk")
+if ($InputMode -eq 'KeyboardMouse') {
+    $launchArgs += "--mnk_sensitivity=$($MouseSensitivity.ToString([Globalization.CultureInfo]::InvariantCulture))"
+    $bindings = [ordered]@{
+        a='Space'; b='E,Shift+Shift'; x='LMB'; y='R'
+        left_trigger='Q'; right_trigger='RMB'; left_shoulder='F'; right_shoulder='C'
+        lstick_up='W'; lstick_down='S'; lstick_left='A'; lstick_right='D'; lstick_press='V'
+        rstick_up='I'; rstick_down='K'; rstick_left='J'; rstick_right='L'; rstick_press='MMB'
+        dpad_up='Up'; dpad_down='Down'; dpad_left='Left'; dpad_right='Right'
+        start='Return'; back='Tab'; guide='None'
+    }
+    foreach ($binding in $bindings.GetEnumerator()) {
+        $variants = foreach ($key in $binding.Value.Split(',')) {
+            $key
+            if ($key -ne 'None' -and -not $key.Contains('+')) { "Shift+$key" }
+        }
+        $launchArgs += "--keybind_$($binding.Key)=$($variants -join ',')"
+    }
 }
 
-# Resolution scaling
-$scale = switch ($RenderScale) {
-    '1x' { 1 }
-    '2x' { 2 }
-    '3x' { 3 }
-}
-$appArgs += "--draw_resolution_scale_x=$scale"
-$appArgs += "--draw_resolution_scale_y=$scale"
+$launchArgs += "--majin_window_fps=$((-not $isFullscreen).ToString().ToLowerInvariant())"
+$launchArgs += "--majin_record_performance=$($isRecordPerf.ToString().ToLowerInvariant())"
+if ($isRecordPerf) { $launchArgs += "--perf_log_csv=$logPath.performance.csv" }
+$launchArgs += "--majin_60fps=$(($FrameRateMode -eq '60').ToString().ToLowerInvariant())"
+$isSkipCutscenes = ConvertTo-Bool $SkipCutscenes
+$launchArgs += "--majin_skip_cutscenes=$($isSkipCutscenes.ToString().ToLowerInvariant())"
 
-if ($Fxaa) {
-    $appArgs += "--swap_post_effect=fxaa"
-}
-
-if ($FrameRate -eq '60') {
-    $appArgs += "--target_fps=60"
+if ($Preview) {
+    Write-Output "PREVIEW OK: $exe $($launchArgs -join ' ')"
+    return
 }
 
-# Window size
-$res = switch ($Resolution) {
-    '720p'  { @{ W = 1280; H = 720 } }
-    '1080p' { @{ W = 1920; H = 1080 } }
-    '1440p' { @{ W = 2560; H = 1440 } }
-    '4K'    { @{ W = 3840; H = 2160 } }
-}
-$appArgs += "--window_width=$($res.W)"
-$appArgs += "--window_height=$($res.H)"
+Write-Output "Runtime log: $logPath"
+$quotedArgs = @($launchArgs | ForEach-Object {
+    '"' + (($_ -replace '(\\*)"', '$1$1\"') -replace '(\\+)$', '$1$1') + '"'
+})
 
-if ($Fullscreen) {
-    $appArgs += "--fullscreen=true"
-}
-
-Write-Host "Launching Majin and the Forsaken Kingdom (USA)..."
-Write-Host "  Executable   : $exe"
-Write-Host "  Backend      : $RenderingPath"
-Write-Host "  Resolution   : $Resolution (Internal Scale: $RenderScale)"
-Write-Host "  Framerate    : $FrameRate FPS"
-Write-Host "  Input Profile: $InputProfile"
-Write-Host "  Log File     : $logFile"
-
-Push-Location $binDir
-try {
-    & $exe @appArgs
-} finally {
-    Pop-Location
-}
+Write-Output "Iniciando majin.exe ($WindowSize, Fullscreen=$isFullscreen, InputMode=$InputMode, FrameRate=$FrameRateMode)..."
+$process = Start-Process -FilePath $exe -ArgumentList $quotedArgs -WorkingDirectory $build -WindowStyle Normal -PassThru -Wait
+Write-Output "majin.exe encerrado com ExitCode: $($process.ExitCode)"
