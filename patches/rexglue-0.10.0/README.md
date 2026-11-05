@@ -37,3 +37,16 @@ when windowed title FPS is requested. It does not alter rendering, input or the
 CSV frame-time samples. release-frame-capture-legacy.patch allows known prior
 capture-only checkouts to migrate safely; unrelated graphics edits still fail
 the source audit. The source companion includes the small timing helper.
+
+## Multi-Threaded Startup PSO Pre-Compilation (`d3d12-blocking-pso-precompile.patch`)
+
+Fixes the startup shader pipeline initialization loop in `pipeline_cache.cpp` so all available background compilation threads are fully spawned and completed before module launch (`await_creation_completion_event`). This converts in-game pipeline compilation stutters into a ~500ms (ROV) or ~25ms (RTV) pre-compilation step during title boot.
+
+## D3D12 GPU Performance Optimizations & UI Loop Fix (`d3d12-gpu-and-ui-optimizations.patch`)
+
+1. **Host Render Target (Default / RTV) Black Screen Fix:** Restores `execute_unclipped_draw_vs_on_cpu = true` in `draw_extent_estimator.cpp` and `primitive_processor_cache_min_indices = 4096` in `primitive_processor.cpp`, preventing screen-space draws from claiming all 2048 EDRAM tiles and corrupting 3D render targets on NVIDIA and AMD GPUs.
+2. **Infinite UI Present Loop Fix:** Fixes `AchievementToastDialog` in `achievement_toast.cpp` and `rex_app.cpp` to only attach to `ImGuiDrawer` when toast notifications are visible, allowing `Presenter` to operate in `PaintMode::kGuestOutputThreadImmediately` and present only at actual guest game frame intervals (30/60 FPS) instead of uncapped 200 FPS UI repaints.
+3. **VRAM Bandwidth Reduction:** Sets `gamma_render_target_as_unorm16 = false` in `flags.cpp` (32bpp `R8G8B8A8_UNORM` instead of 64bpp `R16G16B16A16_UNORM`).
+4. **Native Anisotropic Filtering:** Restores `anisotropic_override = -1` in `texture/cache.cpp` (using native texture sampling instead of forced 4x AF).
+5. **Draw Scissor Optimization:** Enables `execute_unclipped_draw_vs_on_cpu_with_scissor = true` in `draw_extent_estimator.cpp` to prevent spurious EDRAM tile range ownership transfers during 3D gameplay.
+6. **Memexport Readback Disable:** Sets `readback_memexport = false` in `command_processor.cpp` to eliminate GPU-CPU pipeline stalls.

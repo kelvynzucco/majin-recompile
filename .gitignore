@@ -3,16 +3,22 @@ generated/
 build/
 out/
 private/
+game-data*/
 *.xex
 *.xexp
 *.pak
 *.gtd
 *.ged
 *.log
+*.xpso
+*.xsh
 __pycache__/
 !prototype/generated/
 prototype/generated/*
 !prototype/generated/rexglue.cmake
+!prototype-usa/generated/
+prototype-usa/generated/*
+!prototype-usa/generated/rexglue.cmake
 
 reports/
 *.iso
