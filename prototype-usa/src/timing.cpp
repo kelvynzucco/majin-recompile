@@ -16,9 +16,10 @@ REXCVAR_DEFINE_BOOL(majin_skip_intro_logos, false, "Gameplay",
 namespace {
 thread_local uint32_t main_object = 0;
 constexpr uint32_t kRatio = 0x150F8, kRate = 0x15104;
-constexpr uint32_t kSceneTitleLogoDesc = 0x82BC7FBC;
-constexpr uint32_t kSceneTitleTitleDesc = 0x82BC7F90;
-constexpr uint32_t kSceneTitleLogoHash = 0xFF41F842;
+// SceneTitleLogo::Update (0x821CEAF8, vtable 0x820EC274 slot 7) state 2 polls
+// sub_82171A28(input, 8) at this return address; a hit calls the logo Flash
+// "moveCurrentFrame" (the game's own skip path) until "getEndFlag" == "true".
+constexpr uint32_t kLogoSkipInputCallLR = 0x821CEC24;
 
 bool Enabled() {
   return REXCVAR_GET(majin_60fps);
@@ -28,14 +29,6 @@ bool Span(uint32_t object, uint32_t size) {
 }
 float ReadFloat(uint8_t* base, uint32_t address) {
   return std::bit_cast<float>(REX_LOAD_U32(address));
-}
-
-bool IsIntroLogoScene(uint32_t desc_addr, uint8_t* base) {
-  if (desc_addr == kSceneTitleLogoDesc) return true;
-  if (Span(desc_addr, 16)) {
-    if (REX_LOAD_U32(desc_addr + 8) == kSceneTitleLogoHash) return true;
-  }
-  return false;
 }
 }  // namespace
 
@@ -90,18 +83,19 @@ REX_EXTERN(sub_821CC320) {
   __imp__sub_821CC320(ctx, base);
 }
 
-// SceneManager::ChangeScene (0x8219BED8)
-// r3 = output bool*, r4 = SceneManager*, r5 = SceneDescriptor*
-REX_EXTERN(__imp__sub_8219BED8);
-REX_EXTERN(sub_8219BED8) {
-  if (REXCVAR_GET(majin_skip_intro_logos) && IsIntroLogoScene(ctx.r5.u32, base)) {
-    static bool announced = false;
-    if (!announced) {
-      REXLOG_INFO("[Majin Skip Logos] Bypassing intro logos -> jumping directly to SceneTitleTitle (0x{:08X})",
-                  kSceneTitleTitleDesc);
-      announced = true;
-    }
-    ctx.r5.u64 = kSceneTitleTitleDesc;
+// Input "button just pressed" query: returns controller index (0..3) or -1.
+// When skipping intro logos, report a press only for the SceneTitleLogo skip
+// poll so the logos advance via the game's own path. The logo scene still runs
+// its later states, which load resident data before switching to the title.
+REX_EXTERN(__imp__sub_82171A28);
+REX_EXTERN(sub_82171A28) {
+  const bool logo_poll = uint32_t(ctx.lr) == kLogoSkipInputCallLR;
+  __imp__sub_82171A28(ctx, base);
+  if (!logo_poll || !REXCVAR_GET(majin_skip_intro_logos) || ctx.r3.s32 >= 0) return;
+  static bool announced = false;
+  if (!announced) {
+    REXLOG_INFO("[Majin Skip Logos] advancing startup logos via game skip path");
+    announced = true;
   }
-  __imp__sub_8219BED8(ctx, base);
+  ctx.r3.s64 = 0;
 }
