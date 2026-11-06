@@ -30,7 +30,7 @@ index f01eb6a..1433470 100644
 +  s_playback_frequency_ratio.store(ratio, std::memory_order_relaxed);
 +}
 +
- float GetPlaybackFrequencyRatio() {
++float GetPlaybackFrequencyRatio() {
 +  return s_playback_frequency_ratio.load(std::memory_order_relaxed);
 +}
 +
