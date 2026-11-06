@@ -16,10 +16,6 @@ REXCVAR_DEFINE_BOOL(majin_skip_intro_logos, false, "Gameplay",
 namespace {
 thread_local uint32_t main_object = 0;
 constexpr uint32_t kRatio = 0x150F8, kRate = 0x15104;
-// SceneTitleLogo::Update (0x821CEAF8, vtable 0x820EC274 slot 7) state 2 polls
-// sub_82171A28(input, 8) at this return address; a hit calls the logo Flash
-// "moveCurrentFrame" (the game's own skip path) until "getEndFlag" == "true".
-constexpr uint32_t kLogoSkipInputCallLR = 0x821CEC24;
 
 bool Enabled() {
   return REXCVAR_GET(majin_60fps);
@@ -83,19 +79,36 @@ REX_EXTERN(sub_821CC320) {
   __imp__sub_821CC320(ctx, base);
 }
 
-// Input "button just pressed" query: returns controller index (0..3) or -1.
-// When skipping intro logos, report a press only for the SceneTitleLogo skip
-// poll so the logos advance via the game's own path. The logo scene still runs
-// its later states, which load resident data before switching to the title.
-REX_EXTERN(__imp__sub_82171A28);
-REX_EXTERN(sub_82171A28) {
-  const bool logo_poll = uint32_t(ctx.lr) == kLogoSkipInputCallLR;
-  __imp__sub_82171A28(ctx, base);
-  if (!logo_poll || !REXCVAR_GET(majin_skip_intro_logos) || ctx.r3.s32 >= 0) return;
-  static bool announced = false;
-  if (!announced) {
-    REXLOG_INFO("[Majin Skip Logos] advancing startup logos via game skip path");
-    announced = true;
+// SceneTitleLogo::Update (0x821CEAF8, vtable 0x820EC274 slot 7): state logging
+// for monitoring startup transitions.
+REX_EXTERN(__imp__sub_821CEAF8);
+REX_EXTERN(sub_821CEAF8) {
+  const uint32_t object = ctx.r3.u32;
+  const uint32_t s_before = object ? REX_LOAD_U32(object + 48) : 0;
+  __imp__sub_821CEAF8(ctx, base);
+  const uint32_t s_after = object ? REX_LOAD_U32(object + 48) : 0;
+  if (s_before != s_after && REXCVAR_GET(majin_skip_intro_logos)) {
+    REXLOG_INFO("[Majin SceneTitleLogo] state {} -> {}", s_before, s_after);
   }
-  ctx.r3.s64 = 0;
+}
+
+// Scaleform GFx Invoke: SceneTitleLogo::Update (0x821CEAF8) calls this at
+// 0x821CEC70 to query ActionScript "getEndFlag". When skip intro logos is active,
+// immediately return guest pointer 0x820EB20C ("true") so state 2 finishes on
+// its very first tick without stepping through movie frames.
+constexpr uint32_t kLogoEndFlagCallLR = 0x821CEC70;
+constexpr uint32_t kGuestTrueString = 0x820EB20C;
+
+REX_EXTERN(__imp__sub_823D4B10);
+REX_EXTERN(sub_823D4B10) {
+  if (uint32_t(ctx.lr) == kLogoEndFlagCallLR && REXCVAR_GET(majin_skip_intro_logos)) {
+    static bool announced = false;
+    if (!announced) {
+      REXLOG_INFO("[Majin Skip Logos] logo movie completed on tick 1; intro logos skipped");
+      announced = true;
+    }
+    ctx.r3.u64 = kGuestTrueString;
+    return;
+  }
+  __imp__sub_823D4B10(ctx, base);
 }
