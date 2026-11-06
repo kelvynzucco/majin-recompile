@@ -1,13 +1,7 @@
 param([ValidateSet('Debug','Release')][string]$Configuration = 'Release')
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path $PSScriptRoot -Parent
-$vsRoot = 'C:\Program Files\Microsoft Visual Studio\2022\Community'
-if (-not (Test-Path $vsRoot)) { throw 'Visual Studio 2022 not found.' }
-
-& (Join-Path $vsRoot 'Common7\Tools\Launch-VsDevShell.ps1') -Arch amd64 -HostArch amd64 -SkipAutomaticLocation
-$cmakeRoot = Join-Path $vsRoot 'Common7\IDE\CommonExtensions\Microsoft\CMake'
-$clangDir = Join-Path $vsRoot 'VC\Tools\Llvm\x64\bin'
-$env:PATH = $clangDir + ';' + (Join-Path $cmakeRoot 'CMake\bin') + ';' + (Join-Path $cmakeRoot 'Ninja') + ';' + $env:PATH
+. (Join-Path $PSScriptRoot 'vs-env.ps1')
 
 $sdk = ($projectRoot -replace '\\', '/') + '/tools/sdk/win-amd64'
 $preset = 'win-amd64-' + $Configuration.ToLower()

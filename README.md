@@ -101,11 +101,22 @@
 
 ### Prerequisites
 1. **Windows 10/11 x64**
-2. **Visual Studio 2022 Community** with the following workloads:
-   - **Desktop Development with C++** (`MSVC v143 x64`, `Windows 10/11 SDK`, `CMake`, `Ninja`)
-   - **C++ Clang Compiler for Windows** (`LLVM / Clang 19+`)
-3. **PowerShell 7+** (or Windows PowerShell 5.1)
-4. **Git**
+2. **Visual Studio 2022** (Community, Professional, Enterprise or the free **Build Tools**) with:
+   - **Desktop Development with C++** (`MSVC v143 x64`, `Windows 10/11 SDK`)
+   - **Clang:** either the VS component **C++ Clang Compiler for Windows**, or standalone **LLVM 20.1.8** installed to `C:\Program Files\LLVM`
+3. **CMake 3.25+** and **Ninja** (from the VS CMake component or installed separately)
+4. **PowerShell 7+** (or Windows PowerShell 5.1), **Git** and **Python 3**
+
+The build scripts locate Visual Studio through `vswhere` and pick Clang/CMake/Ninja automatically (`scripts/vs-env.ps1`), so no paths need editing. A minimal setup with winget:
+
+```powershell
+winget install Microsoft.VisualStudio.2022.BuildTools --override "--quiet --wait --add Microsoft.VisualStudio.Workload.VCTools --add Microsoft.VisualStudio.Component.VC.Tools.x86.x64 --add Microsoft.VisualStudio.Component.Windows11SDK.26100 --add Microsoft.VisualStudio.Component.VC.CMake.Project --includeRecommended"
+winget install LLVM.LLVM --version 20.1.8
+winget install Kitware.CMake Ninja-build.Ninja Python.Python.3.12
+```
+
+> [!TIP]
+> Keep the working copy outside OneDrive/Dropbox-synced folders: extracted game data, the SDK and build outputs take 20-30 GB.
 
 ### Step-by-Step Build Guide
 
