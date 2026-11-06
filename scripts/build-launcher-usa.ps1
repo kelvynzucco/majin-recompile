@@ -5,10 +5,8 @@ New-Item -ItemType Directory -Force -Path (Join-Path $root 'assets\launcher') | 
 New-Item -ItemType Directory -Force -Path (Join-Path $root 'launcher') | Out-Null
 New-Item -ItemType Directory -Force -Path (Join-Path $root 'private\build\launcher') | Out-Null
 
-$vsRoot = 'C:\Program Files\Microsoft Visual Studio\2022\Community'
-& (Join-Path $vsRoot 'Common7\Tools\Launch-VsDevShell.ps1') -Arch amd64 -HostArch amd64 -SkipAutomaticLocation
+. (Join-Path $PSScriptRoot 'vs-env.ps1')
 
-$llvmBin = Join-Path $vsRoot 'VC\Tools\Llvm\x64\bin'
 $compiler = Join-Path $llvmBin 'clang-cl.exe'
 $linker = Join-Path $llvmBin 'lld-link.exe'
 $source = Join-Path $root 'launcher'

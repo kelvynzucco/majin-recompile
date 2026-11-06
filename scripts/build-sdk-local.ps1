@@ -10,15 +10,7 @@ function Check-Native($step) {
     }
 }
 
-$vsRoot = 'C:\Program Files\Microsoft Visual Studio\2022\Community'
-if (!(Test-Path $vsRoot)) {
-    throw 'Visual Studio 2022 installation not found.'
-}
-
-& (Join-Path $vsRoot 'Common7\Tools\Launch-VsDevShell.ps1') -Arch amd64 -HostArch amd64 -SkipAutomaticLocation
-$cmakeRoot = Join-Path $vsRoot 'Common7\IDE\CommonExtensions\Microsoft\CMake'
-$clangDir = Join-Path $vsRoot 'VC\Tools\Llvm\x64\bin'
-$env:PATH = $clangDir + ';' + (Join-Path $cmakeRoot 'CMake\bin') + ';' + (Join-Path $cmakeRoot 'Ninja') + ';' + $env:PATH
+. (Join-Path $PSScriptRoot 'vs-env.ps1')
 
 Push-Location $source
 try {
