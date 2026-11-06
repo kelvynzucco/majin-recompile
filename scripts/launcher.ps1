@@ -123,15 +123,19 @@ $scale = Add-Dropdown $grpDisplay 120 57 354 @(
 ) 1
 
 Add-FieldLabel $grpDisplay 'Anti-aliasing:' 16 94 100
-$effect = Add-Dropdown $grpDisplay 120 91 354 @(
+$effect = Add-Dropdown $grpDisplay 120 91 150 @(
     'FXAA (Recommended)',
     'Original (None)'
 ) 0
+
+Add-FieldLabel $grpDisplay 'Upscaler:' 278 94 60
+$upscaler = Add-Dropdown $grpDisplay 338 91 136 @('FSR 1','CAS','Bilinear') 0
 
 $tooltip.SetToolTip($size, 'Target window resolution for display.')
 $tooltip.SetToolTip($mode, 'Display in a standard window or borderless fullscreen.')
 $tooltip.SetToolTip($scale, 'Internal 3D rendering resolution scale.')
 $tooltip.SetToolTip($effect, 'Post-processing anti-aliasing.')
+$tooltip.SetToolTip($upscaler, 'How the rendered image is scaled to the window. FSR 1: AMD edge-adaptive upscaling + sharpening, works on any GPU and makes 1x look much sharper for almost no GPU cost. CAS: sharpening only. Bilinear: plain stretch (original behavior).')
 
 # =========================================================================
 # Section 2: Performance & Engine
@@ -302,6 +306,8 @@ if (Test-Path -LiteralPath $settingsPath) {
         if ($has60 -and $saved.FrameRateMode) { $frameRate.SelectedIndex = if ($saved.FrameRateMode -eq 'Original') { 1 } else { 0 } }
         if ($saved.RenderingPath -eq 'ROV') { $renderingPath.SelectedIndex = 1 } else { $renderingPath.SelectedIndex = 0 }
         if ($saved.PostEffect -eq 'none') { $effect.SelectedIndex = 1 } else { $effect.SelectedIndex = 0 }
+        $upscalerIdx = @('fsr','cas','bilinear').IndexOf([string]$saved.Upscaler)
+        if ($upscalerIdx -ge 0) { $upscaler.SelectedIndex = $upscalerIdx }
         if ($saved.SkipIntroLogos -is [bool]) { $chkSkipLogos.Checked = $saved.SkipIntroLogos }
         if ($saved.SkipCutscenes -is [bool]) { $cutsceneEnabled.Checked = $saved.SkipCutscenes }
         if ($saved.CutsceneSpeed -in @(2,4,6,8)) {
@@ -361,6 +367,7 @@ $play.Add_Click({
             VSync             = ($sync.SelectedIndex -eq 0)
             RenderScale       = ($scale.SelectedIndex + 1)
             PostEffect        = (@('fxaa','none')[$effect.SelectedIndex])
+            Upscaler          = (@('fsr','cas','bilinear')[$upscaler.SelectedIndex])
             FrameRateMode     = (@('60','Original')[$frameRate.SelectedIndex])
             RenderingPath     = (@('Default','ROV')[$renderingPath.SelectedIndex])
             SkipIntroLogos    = $chkSkipLogos.Checked

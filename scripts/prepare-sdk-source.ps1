@@ -138,4 +138,14 @@ if ($LASTEXITCODE -ne 0) {
     Check-Native 'SDL audio turbo frequency patch application'
 }
 
-Write-Host "[1.1 - 1.6] ReXGlue SDK v0.10.0 source cloned, 14 submodules initialized, and all patches applied successfully!"
+# 1.7: Enable the built-in spatial FSR 1 / CAS present effects (no external SDK)
+$fsrPatch = Join-Path $patchRoot 'builtin-fsr1-cas.patch'
+git -C $source apply --reverse --check $fsrPatch 2>$null
+if ($LASTEXITCODE -ne 0) {
+    git -C $source apply --check $fsrPatch
+    Check-Native 'Built-in FSR 1 / CAS patch check'
+    git -C $source apply $fsrPatch
+    Check-Native 'Built-in FSR 1 / CAS patch application'
+}
+
+Write-Host "[1.1 - 1.7] ReXGlue SDK v0.10.0 source cloned, 14 submodules initialized, and all patches applied successfully!"
