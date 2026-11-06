@@ -16,7 +16,7 @@ $has60 = Test-Path -LiteralPath $nativePath
 # =========================================================================
 $form = New-Object System.Windows.Forms.Form
 $form.Text = 'Majin and the Forsaken Kingdom - Launcher (USA 0.0.0.2)'
-$form.ClientSize = New-Object System.Drawing.Size(530, 680)
+$form.ClientSize = New-Object System.Drawing.Size(530, 674)
 $form.StartPosition = 'CenterScreen'
 $form.FormBorderStyle = 'FixedDialog'
 $form.MaximizeBox = $false
@@ -156,13 +156,23 @@ $tooltip.SetToolTip($sync, 'Enables vertical sync to prevent screen tearing.')
 $tooltip.SetToolTip($renderingPath, 'Rasterizer Ordered Views (ROV) emulation ensures proper EDRAM blending on modern GPUs.')
 
 # =========================================================================
-# Section 3: Cutscenes & Dialogue
+# Section 3: Startup & Cutscenes
 # =========================================================================
-$grpCutscene = New-SectionCard 'CUTSCENES & DIALOGUE FAST-FORWARD' 326 98
+$grpCutscene = New-SectionCard 'STARTUP & CUTSCENES' 326 126
+
+$chkSkipLogos = New-Object System.Windows.Forms.CheckBox
+$chkSkipLogos.Text = 'Skip opening logos (boot directly to start screen)'
+$chkSkipLogos.SetBounds(16, 22, 458, 22)
+$chkSkipLogos.Font = New-Object System.Drawing.Font('Segoe UI', 9.0, [System.Drawing.FontStyle]::Bold)
+$chkSkipLogos.ForeColor = $cTextMain
+$chkSkipLogos.BackColor = [System.Drawing.Color]::Transparent
+$chkSkipLogos.FlatStyle = 'Flat'
+$chkSkipLogos.Checked = $false
+$grpCutscene.Controls.Add($chkSkipLogos)
 
 $cutsceneEnabled = New-Object System.Windows.Forms.CheckBox
 $cutsceneEnabled.Text = 'Enable fast-forward (Hold Select on gamepad or Tab on keyboard)'
-$cutsceneEnabled.SetBounds(16, 24, 458, 24)
+$cutsceneEnabled.SetBounds(16, 52, 458, 22)
 $cutsceneEnabled.Font = New-Object System.Drawing.Font('Segoe UI', 9.0, [System.Drawing.FontStyle]::Bold)
 $cutsceneEnabled.ForeColor = $cTextMain
 $cutsceneEnabled.BackColor = [System.Drawing.Color]::Transparent
@@ -170,12 +180,12 @@ $cutsceneEnabled.FlatStyle = 'Flat'
 $cutsceneEnabled.Checked = $true
 $grpCutscene.Controls.Add($cutsceneEnabled)
 
-Add-FieldLabel $grpCutscene 'Speed multiplier:' 16 58 115
-$cutsceneSpeed = Add-Dropdown $grpCutscene 135 55 135 @('2x Speed','4x Speed (Default)','6x Speed','8x Speed') 1
+Add-FieldLabel $grpCutscene 'Speed multiplier:' 16 86 115
+$cutsceneSpeed = Add-Dropdown $grpCutscene 135 83 135 @('2x Speed','4x Speed (Default)','6x Speed','8x Speed') 1
 
 $cutsceneHint = New-Object System.Windows.Forms.Label
 $cutsceneHint.Text = 'Only accelerates during in-game dialogue & 3D scenes'
-$cutsceneHint.SetBounds(278, 59, 196, 20)
+$cutsceneHint.SetBounds(278, 87, 196, 20)
 $cutsceneHint.Font = New-Object System.Drawing.Font('Segoe UI', 8.0)
 $cutsceneHint.ForeColor = $cTextMuted
 $cutsceneHint.BackColor = [System.Drawing.Color]::Transparent
@@ -188,13 +198,14 @@ $cutsceneEnabled.Add_CheckedChanged({
     $cutsceneHint.ForeColor = if ($cutsceneEnabled.Checked) { $cTextMuted } else { [System.Drawing.Color]::FromArgb(90, 95, 105) }
 })
 
+$tooltip.SetToolTip($chkSkipLogos, 'Bypasses opening publisher and developer logos, taking you straight to PRESS START BUTTON.')
 $tooltip.SetToolTip($cutsceneEnabled, 'Allows speeding through in-game cutscenes and dialogues without breaking audio or muting subsequent voices.')
 $tooltip.SetToolTip($cutsceneSpeed, 'Sets the speed multiplier for game logic and audio pitch-scaling during fast-forward.')
 
 # =========================================================================
 # Section 4: Controls & Directory
 # =========================================================================
-$grpControls = New-SectionCard 'CONTROLS & GAME DIRECTORY' 434 140
+$grpControls = New-SectionCard 'CONTROLS & GAME DIRECTORY' 462 134
 
 Add-FieldLabel $grpControls 'Input mode:' 16 26 100
 $inputMode = Add-Dropdown $grpControls 120 23 150 @('Controller','Keyboard + mouse') 0
@@ -238,9 +249,9 @@ $controlHelp.Add_Click({
     $dialog.Dispose()
 })
 
-Add-FieldLabel $grpControls 'Game folder:' 16 66 100
+Add-FieldLabel $grpControls 'Game folder:' 16 61 100
 $dataPath = New-Object System.Windows.Forms.TextBox
-$dataPath.SetBounds(120, 63, 264, 26)
+$dataPath.SetBounds(120, 58, 264, 26)
 $dataPath.Font = New-Object System.Drawing.Font('Segoe UI', 8.5)
 $dataPath.BackColor = $cControlBg
 $dataPath.ForeColor = $cTextMain
@@ -250,7 +261,7 @@ $grpControls.Controls.Add($dataPath)
 
 $browse = New-Object System.Windows.Forms.Button
 $browse.Text = 'Browse...'
-$browse.SetBounds(392, 63, 82, 26)
+$browse.SetBounds(392, 58, 82, 26)
 $browse.FlatStyle = 'Flat'
 $browse.Font = New-Object System.Drawing.Font('Segoe UI', 8.5)
 $browse.BackColor = $cControlBg
@@ -270,7 +281,7 @@ $browse.Add_Click({
 # Performance recording check
 $chkRecordPerf = New-Object System.Windows.Forms.CheckBox
 $chkRecordPerf.Text = 'Record session performance CSV log (reports/)'
-$chkRecordPerf.SetBounds(16, 102, 458, 22)
+$chkRecordPerf.SetBounds(16, 96, 458, 22)
 $chkRecordPerf.Font = New-Object System.Drawing.Font('Segoe UI', 8.5)
 $chkRecordPerf.ForeColor = $cTextMuted
 $chkRecordPerf.BackColor = [System.Drawing.Color]::Transparent
@@ -291,6 +302,7 @@ if (Test-Path -LiteralPath $settingsPath) {
         if ($has60 -and $saved.FrameRateMode) { $frameRate.SelectedIndex = if ($saved.FrameRateMode -eq 'Original') { 1 } else { 0 } }
         if ($saved.RenderingPath -eq 'Default') { $renderingPath.SelectedIndex = 1 } else { $renderingPath.SelectedIndex = 0 }
         if ($saved.PostEffect -eq 'none') { $effect.SelectedIndex = 1 } else { $effect.SelectedIndex = 0 }
+        if ($saved.SkipIntroLogos -is [bool]) { $chkSkipLogos.Checked = $saved.SkipIntroLogos }
         if ($saved.SkipCutscenes -is [bool]) { $cutsceneEnabled.Checked = $saved.SkipCutscenes }
         if ($saved.CutsceneSpeed -in @(2,4,6,8)) {
             $speedIdx = @(2,4,6,8).IndexOf([int]$saved.CutsceneSpeed)
@@ -315,7 +327,7 @@ if (Test-Path -LiteralPath $settingsPath) {
 # =========================================================================
 $cancel = New-Object System.Windows.Forms.Button
 $cancel.Text = 'Exit'
-$cancel.SetBounds(20, 595, 120, 46)
+$cancel.SetBounds(20, 608, 120, 46)
 $cancel.FlatStyle = 'Flat'
 $cancel.Font = New-Object System.Drawing.Font('Segoe UI', 9.5, [System.Drawing.FontStyle]::Bold)
 $cancel.BackColor = [System.Drawing.Color]::FromArgb(51, 65, 85)
@@ -327,7 +339,7 @@ $form.CancelButton = $cancel
 
 $play = New-Object System.Windows.Forms.Button
 $play.Text = '▶   LAUNCH GAME'
-$play.SetBounds(155, 595, 355, 46)
+$play.SetBounds(155, 608, 355, 46)
 $play.FlatStyle = 'Flat'
 $play.Font = New-Object System.Drawing.Font('Segoe UI', 11.0, [System.Drawing.FontStyle]::Bold)
 $play.BackColor = [System.Drawing.Color]::FromArgb(22, 163, 74) # Vibrant emerald
@@ -351,6 +363,7 @@ $play.Add_Click({
             PostEffect        = (@('fxaa','none')[$effect.SelectedIndex])
             FrameRateMode     = (@('60','Original')[$frameRate.SelectedIndex])
             RenderingPath     = (@('ROV','Default')[$renderingPath.SelectedIndex])
+            SkipIntroLogos    = $chkSkipLogos.Checked
             SkipCutscenes     = $cutsceneEnabled.Checked
             CutsceneSpeed     = $speedMap[$cutsceneSpeed.SelectedIndex]
             InputMode         = (@('Controller','KeyboardMouse')[$inputMode.SelectedIndex])

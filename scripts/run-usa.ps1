@@ -13,6 +13,7 @@ param(
     [ValidateSet('Original','60')][string]$FrameRateMode = '60',
     $SkipCutscenes = $true,
     [ValidateRange(2,16)][int]$CutsceneSpeed = 4,
+    $SkipIntroLogos = $false,
     [string]$GameDataRoot = 'C:\Users\kelvy\Desktop\Recomp\game-data-usa',
     [switch]$Preview
 )
@@ -99,6 +100,8 @@ $launchArgs += "--majin_60fps=$(($FrameRateMode -eq '60').ToString().ToLowerInva
 $isSkipCutscenes = ConvertTo-Bool $SkipCutscenes
 $launchArgs += "--majin_skip_cutscenes=$($isSkipCutscenes.ToString().ToLowerInvariant())"
 $launchArgs += "--majin_cutscene_speed=$CutsceneSpeed"
+$isSkipIntroLogos = ConvertTo-Bool $SkipIntroLogos
+$launchArgs += "--majin_skip_intro_logos=$($isSkipIntroLogos.ToString().ToLowerInvariant())"
 
 if ($Preview) {
     Write-Output "PREVIEW OK: $exe $($launchArgs -join ' ')"
