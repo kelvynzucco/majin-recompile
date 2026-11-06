@@ -51,7 +51,7 @@ Fixes the startup shader pipeline initialization loop in `pipeline_cache.cpp` so
 5. **Draw Scissor Optimization:** Enables `execute_unclipped_draw_vs_on_cpu_with_scissor = true` in `draw_extent_estimator.cpp` to prevent spurious EDRAM tile range ownership transfers during 3D gameplay.
 6. **Memexport Readback Disable:** Sets `readback_memexport = false` in `command_processor.cpp` to eliminate GPU-CPU pipeline stalls.
 
-This patch is applied after `release-frame-capture.patch` and `fps60.patch`. Its `command_processor.cpp` section therefore contains only the `readback_memexport` change; the frame pacer and Release frame counters come from those earlier patches. (A previous revision repeated them, so `prepare-sdk-source.ps1` failed on a clean checkout.)
+This patch is applied after `release-frame-capture.patch` and `fps60.patch`. Its `command_processor.cpp` section contains the `readback_memexport` change, while the Release frame counters come from `release-frame-capture.patch`. The 60 FPS frame pacer (`MajinFramePacer`) is located in `d3d12_presenter.cpp` (`fps60.patch`) at the presentation layer immediately prior to `Present()`, ensuring continuous command submission so the GPU processes draw calls evenly across the 16.6 ms window without 100% burst spikes. (A previous revision repeated them, so `prepare-sdk-source.ps1` failed on a clean checkout.)
 
 ## SDL audio playback-ratio hook (`sdl-audio-turbo-frequency.patch`)
 

@@ -107,6 +107,7 @@ Check-Native '60 FPS patch check'
 git -C $source apply $fpsPatch
 Check-Native '60 FPS patch application'
 Copy-Item -LiteralPath (Join-Path $patchRoot 'frame_deadline.h') -Destination (Join-Path $source 'src\graphics\frame_deadline.h') -Force
+Copy-Item -LiteralPath (Join-Path $patchRoot 'frame_deadline.h') -Destination (Join-Path $source 'src\ui\d3d12\frame_deadline.h') -Force
 
 # 1.4: Apply D3D12 startup PSO precompilation patch
 $psoPatch = Join-Path $patchRoot 'd3d12-blocking-pso-precompile.patch'

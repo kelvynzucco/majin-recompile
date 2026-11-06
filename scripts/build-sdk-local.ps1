@@ -29,7 +29,7 @@ try {
     Check-Native 'Texture logging tests'
 
     Write-Output '[3/5] Configuring CMake for rexglue-sdk (win-amd64)...'
-    cmake --preset win-amd64 -DREXGLUE_BUILD_TESTS=OFF
+    cmake --preset win-amd64 -DREXGLUE_USE_VULKAN=ON -DREXGLUE_BUILD_TESTS=OFF
     Check-Native 'SDK configuration'
 
     Write-Output '[4/5] Building full rexglue-sdk (Release)...'

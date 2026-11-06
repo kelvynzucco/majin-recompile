@@ -5,6 +5,7 @@
 #pragma once
 
 #include <rex/rex_app.h>
+#include <rex/system/gpu_plugin.h>
 #include <rex/ui/keybinds.h>
 #include <rex/cvar.h>
 #include <rex/perf/counter.h>
@@ -79,7 +80,28 @@ class MajinApp : public rex::ReXApp {
     rex::ui::ProcessKeyEvent(event);
   }
 
+  void OnPreSetup(rex::RuntimeConfig& config) override {
+    if (!config.graphics && config.gpu_plugin.empty()) {
+      config.gpu_plugin = "xenos";
+    }
+    if (!config.graphics && !config.gpu_plugin.empty()) {
+      const auto backend = rex::cvar::GetFlagByName("gpu_backend");
+      config.graphics = rex::system::LoadGpuPlugin(
+          config.gpu_plugin, backend.empty() ? "any" : backend);
+    }
+  }
+
   void OnPostInitLogging() override {
+    // Stability and pacing defaults adapted from Forza Horizon recompilation:
+    if (rex::cvar::GetFlagByName("gpu_backend") == "d3d12") {
+      rex::cvar::SetFlagByName("d3d12_allow_variable_refresh_rate_and_tearing", "false");
+    }
+    rex::cvar::SetFlagByName("vulkan_allow_present_mode_immediate", "false");
+    rex::cvar::SetFlagByName("vulkan_allow_present_mode_mailbox", "false");
+    rex::cvar::SetFlagByName("vulkan_allow_present_mode_fifo_relaxed", "false");
+    rex::cvar::SetFlagByName("vulkan_allow_present_mode_fifo_latest_ready", "true");
+    rex::cvar::SetFlagByName("async_shader_compilation", "true");
+
     // The SDK already timestamps guest GPU swap packets and supports buffered CSV.
     // Connect its writer before the GPU thread starts; no telemetry or UI overlay.
     if (!rex::cvar::Query<bool>("majin_record_performance")) {

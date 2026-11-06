@@ -6,7 +6,7 @@ param(
     [ValidateRange(1,3)][int]$RenderScale = 1,
     [ValidateSet('none','fxaa')][string]$PostEffect = 'none',
     [ValidateSet('fsr','cas','bilinear')][string]$Upscaler = 'fsr',
-    [ValidateSet('Default','ROV')][string]$RenderingPath = 'Default',
+    [ValidateSet('Default','ROV','Vulkan')][string]$RenderingPath = 'Default',
     [ValidateSet('Controller','KeyboardMouse')][string]$InputMode = 'KeyboardMouse',
     [ValidateRange(0.01,10)][double]$MouseSensitivity = 1.0,
     $RecordPerformance = $true,
@@ -46,7 +46,9 @@ if (-not (Test-Path $exe)) {
 $sessionRoot = Join-Path $projectRoot 'private\runtime-usa'
 New-Item -ItemType Directory -Force -Path $sessionRoot | Out-Null
 
-$cacheKey = 'd3d12-' + $RenderingPath.ToLower() + '/' + $Configuration.ToLower()
+$isVulkan = ($RenderingPath -eq 'Vulkan')
+$gpuBackend = if ($isVulkan) { 'vulkan' } else { 'd3d12' }
+$cacheKey = $gpuBackend + '-' + $RenderingPath.ToLower() + '/' + $Configuration.ToLower()
 $cacheRoot = Join-Path $sessionRoot ('cache/' + $cacheKey)
 $metadataRoot = Join-Path $sessionRoot ('metadata/' + $cacheKey)
 New-Item -ItemType Directory -Force -Path $cacheRoot, $metadataRoot, "$sessionRoot/user" | Out-Null
@@ -58,6 +60,7 @@ $logPath = Join-Path $projectRoot ('reports\runtime-usa-' + (Get-Date -Format 'y
 $dimensions = $WindowSize.Split('x')
 $launchArgs = @(
     '--gpu_plugin', 'xenos',
+    "--gpu_backend=$gpuBackend",
     '--game_data_root', $GameDataRoot,
     '--user_data_root', "$sessionRoot/user",
     '--cache_root', $cacheRoot,
@@ -73,6 +76,9 @@ $launchArgs = @(
     "--render_target_path_d3d12=$renderTarget",
     "--gpu_allow_invalid_fetch_constants=$allowInvalid"
 )
+if ($isVSync -and -not $isVulkan) {
+    $launchArgs += '--d3d12_allow_variable_refresh_rate_and_tearing=false'
+}
 
 $mnk = ($InputMode -eq 'KeyboardMouse').ToString().ToLowerInvariant()
 $launchArgs += @("--mnk_mode=$mnk", "--mnk_mouse=$mnk")

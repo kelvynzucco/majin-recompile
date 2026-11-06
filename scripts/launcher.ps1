@@ -1,4 +1,4 @@
-﻿param([switch]$ValidateOnly, [ValidateSet('Debug','Release')][string]$Configuration='Release')
+param([switch]$ValidateOnly, [ValidateSet('Debug','Release')][string]$Configuration='Release')
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path $PSScriptRoot -Parent
 New-Item -ItemType Directory -Force -Path (Join-Path $projectRoot 'reports') | Out-Null
@@ -151,8 +151,9 @@ $sync = Add-Dropdown $grpPerf 338 23 136 @('On (Recommended)','Off') 0
 
 Add-FieldLabel $grpPerf 'Rendering path:' 16 60 100
 $renderingPath = Add-Dropdown $grpPerf 120 57 354 @(
-    'Default (Recommended: RTV on NVIDIA/AMD, ROV on Intel)',
-    'ROV Compatibility (heavier GPU load; fallback)'
+    'Direct3D 12 (Default RTV/ROV)',
+    'Direct3D 12 (Forced ROV)',
+    'Vulkan (Forza Horizon Backend - Smooth & Stable GPU)'
 ) 0
 
 $tooltip.SetToolTip($frameRate, 'Unlocks 60 FPS gameplay with normalized cutscene timers, or locks to original 30 FPS.')
@@ -304,7 +305,13 @@ if (Test-Path -LiteralPath $settingsPath) {
         if ($saved.VSync -is [bool]) { $sync.SelectedIndex = if ($saved.VSync) { 0 } else { 1 } }
         if ($saved.RenderScale -in @(1,2,3)) { $scale.SelectedIndex = [int]$saved.RenderScale - 1 }
         if ($has60 -and $saved.FrameRateMode) { $frameRate.SelectedIndex = if ($saved.FrameRateMode -eq 'Original') { 1 } else { 0 } }
-        if ($saved.RenderingPath -eq 'ROV') { $renderingPath.SelectedIndex = 1 } else { $renderingPath.SelectedIndex = 0 }
+        if ($saved.RenderingPath -eq 'Vulkan') {
+            $renderingPath.SelectedIndex = 2
+        } elseif ($saved.RenderingPath -eq 'ROV') {
+            $renderingPath.SelectedIndex = 1
+        } else {
+            $renderingPath.SelectedIndex = 0
+        }
         if ($saved.PostEffect -eq 'none') { $effect.SelectedIndex = 1 } else { $effect.SelectedIndex = 0 }
         $upscalerIdx = @('fsr','cas','bilinear').IndexOf([string]$saved.Upscaler)
         if ($upscalerIdx -ge 0) { $upscaler.SelectedIndex = $upscalerIdx }
@@ -369,7 +376,7 @@ $play.Add_Click({
             PostEffect        = (@('fxaa','none')[$effect.SelectedIndex])
             Upscaler          = (@('fsr','cas','bilinear')[$upscaler.SelectedIndex])
             FrameRateMode     = (@('60','Original')[$frameRate.SelectedIndex])
-            RenderingPath     = (@('Default','ROV')[$renderingPath.SelectedIndex])
+            RenderingPath     = (@('Default','ROV','Vulkan')[$renderingPath.SelectedIndex])
             SkipIntroLogos    = $chkSkipLogos.Checked
             SkipCutscenes     = $cutsceneEnabled.Checked
             CutsceneSpeed     = $speedMap[$cutsceneSpeed.SelectedIndex]

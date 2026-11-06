@@ -105,6 +105,7 @@ Check-Native '60 FPS patch check'
 git -C $source apply $fpsPatch
 Check-Native '60 FPS patch application'
 Copy-Item -LiteralPath (Join-Path $patchRoot 'frame_deadline.h') -Destination (Join-Path $source 'src/graphics/frame_deadline.h') -Force
+Copy-Item -LiteralPath (Join-Path $patchRoot 'frame_deadline.h') -Destination (Join-Path $source 'src/ui/d3d12/frame_deadline.h') -Force
 $fpsExpected=Get-Content -LiteralPath (Join-Path $patchRoot 'fps60.json') -Raw | ConvertFrom-Json
 foreach($item in $fpsExpected.Files){
  $normalized=[IO.File]::ReadAllText((Join-Path $source $item.Path)).Replace("`r`n","`n")
