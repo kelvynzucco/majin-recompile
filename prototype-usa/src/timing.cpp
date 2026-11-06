@@ -4,7 +4,6 @@
 #include "equivalent_counter.h"
 #include <rex/cvar.h>
 #include <rex/logging.h>
-#include <rex/audio/audio_driver.h>
 #include <bit>
 #include <cmath>
 
@@ -15,8 +14,7 @@ namespace {
 thread_local uint32_t main_object = 0;
 constexpr uint32_t kRatio = 0x150F8, kRate = 0x15104;
 bool Enabled() {
-  static const bool enabled = rex::cvar::Query<bool>("majin_60fps");
-  return enabled;
+  return REXCVAR_GET(majin_60fps);
 }
 bool Span(uint32_t object, uint32_t size) {
   return object >= 0x10000 && object <= UINT32_MAX - size;
@@ -26,12 +24,7 @@ float ReadFloat(uint8_t* base, uint32_t address) {
 }
 }
 
-extern bool IsBackOrTabHeld();
-extern bool IsTurboAllowed();
-extern void OnTurboFrameTick();
-extern void OnTurboDisengaged();
-extern void TickCutsceneTiming();
-extern float GetCutsceneSpeedMultiplier();
+extern float UpdateCutsceneTurbo(uint8_t* base);
 
 // Below 0x821C0000: USA address is identical to PAL (0x82162238, caller LR 0x821616EC)
 REX_EXTERN(__imp__sub_82162238);
@@ -44,21 +37,13 @@ REX_EXTERN(sub_82162238) {
   const float rate = ReadFloat(base, object + kRate);
   float ratio = ReadFloat(base, object + kRatio);
 
-  const bool turbo = IsTurboAllowed() && IsBackOrTabHeld();
+  const float speed_mult = UpdateCutsceneTurbo(base);
 
-  if (turbo && std::isfinite(ratio)) {
-    OnTurboFrameTick();
-    const float speed_mult = GetCutsceneSpeedMultiplier();
+  if (speed_mult > 1.0f && std::isfinite(ratio)) {
     ratio *= speed_mult;
     REX_STORE_U32(object + kRatio, std::bit_cast<uint32_t>(ratio));
     REX_STORE_U32(object + 0x150F4, std::bit_cast<uint32_t>(ratio / rate));
-    rex::audio::SetPlaybackFrequencyRatio(speed_mult);
-  } else {
-    OnTurboDisengaged();
-    rex::audio::SetPlaybackFrequencyRatio(1.0f);
   }
-
-  TickCutsceneTiming();
 
   if (!Enabled()) return;
   main_object = rate == 30.0f && std::isfinite(ratio) && ratio >= 0 && ratio <= 64
