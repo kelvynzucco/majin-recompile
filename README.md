@@ -62,7 +62,7 @@
 - **Modern UI/UX Design:** Dark Slate cards with zero image layering dependencies or DPI scaling clipping.
 - **Resolution Output:** Selectable output between `720p` (`1280x720`), `1080p` (`1920x1080`), `1440p` (`2560x1440`), and `4K` (`3840x2160`).
 - **Internal Draw Scaling:** `1x` (native 720p), `2x` (1440p), and `3x` (4K).
-- **Rendering Backends:** Choose between **ROV Compatibility** (recommended for NVIDIA/AMD EDRAM) and **Default (RTV)**.
+- **Rendering Backends:** **Default** (recommended) lets the runtime pick by GPU vendor: host render targets (RTV) on NVIDIA/AMD, ROV on Intel. **ROV Compatibility** forces pixel-shader EDRAM emulation everywhere; on an RTX 3060 Ti at 1080p it drew ~30% more average power (76 W vs 54 W) and ~60% higher peaks than Default during gameplay, so use it only as a fallback for rendering errors.
 - **Input Profiles:** Controller (via SDL3 / XInput) and Keyboard + Mouse.
 - **Framerate:** Original (30 FPS) or 60 FPS mode.
 

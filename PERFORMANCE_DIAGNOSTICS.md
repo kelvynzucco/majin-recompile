@@ -113,3 +113,40 @@ display, minimize/maximize/restore, numeric FPS with CSV off and on, no title FP
 in fullscreen, CSV capture when enabled and normal close. These were startup/menu
 tests and do not establish gameplay performance. Both the project Release entry
 and the separate candidate are updated together to avoid stale executables.
+
+## Rendering path and GPU load
+
+The launcher's **Rendering path** now defaults to **Default**. Default passes an
+empty `render_target_path_d3d12`, so the runtime chooses by GPU vendor: host
+render targets (RTV) on NVIDIA and AMD, and ROV on Intel, where the RTV stencil
+path is unreliable. **ROV Compatibility** forces EDRAM emulation in pixel shaders
+on every GPU; the runtime itself notes that this path is generally much slower.
+Earlier builds defaulted to ROV and labelled it as recommended for NVIDIA/AMD.
+Saved launcher settings keep their previous value, so anyone upgrading from a
+build that saved ROV should select Default once in the launcher.
+
+November 6: on an RTX 3060 Ti (driver 617.42) with i7-9700K, 1920x1080 windowed,
+render scale 1x, 60 FPS mode, early cave gameplay, 60 s each:
+
+| Path | Avg power | P95 power | Avg graphics clock | Frame rate |
+| --- | ---: | ---: | ---: | ---: |
+| ROV | 76 W | 104 W | 1679 MHz | 60 |
+| Default (RTV) | 54 W | 64 W | 1209 MHz | 60 |
+
+Title screen, intro video and this gameplay segment rendered correctly with
+Default. The two runs used nearby but not identical positions, and this is a
+short sample, not a full-campaign compatibility check. If a scene renders
+incorrectly with Default, switch that session to ROV and report the location.
+
+### Measuring GPU load (NVIDIA)
+
+`scripts/measure-gpu.ps1` samples `nvidia-smi` twice per second while
+`majin.exe` runs and prints average/P50/P95/max for utilization, power, graphics
+clock and VRAM. Raw samples go to `reports/gpu-<label>-<time>.csv`. It reads
+counters only and changes no settings. Compare paths at the same checkpoint and
+settings; prefer power and clock over utilization, which stays similar while the
+GPU boosts to different clocks.
+
+```powershell
+.\scripts\measure-gpu.ps1 -Label rtv-1080p -Seconds 60 -WaitForGame
+```

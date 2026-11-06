@@ -5,7 +5,7 @@ param(
     $VSync = $true,
     [ValidateRange(1,3)][int]$RenderScale = 1,
     [ValidateSet('none','fxaa')][string]$PostEffect = 'none',
-    [ValidateSet('Default','ROV')][string]$RenderingPath = 'ROV',
+    [ValidateSet('Default','ROV')][string]$RenderingPath = 'Default',
     [ValidateSet('Controller','KeyboardMouse')][string]$InputMode = 'KeyboardMouse',
     [ValidateRange(0.01,10)][double]$MouseSensitivity = 1.0,
     $RecordPerformance = $true,
