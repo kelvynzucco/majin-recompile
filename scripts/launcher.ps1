@@ -1,4 +1,4 @@
-param([switch]$ValidateOnly, [ValidateSet('Debug','Release')][string]$Configuration='Release')
+﻿param([switch]$ValidateOnly, [ValidateSet('Debug','Release')][string]$Configuration='Release')
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path $PSScriptRoot -Parent
 New-Item -ItemType Directory -Force -Path (Join-Path $projectRoot 'reports') | Out-Null
@@ -147,13 +147,13 @@ $sync = Add-Dropdown $grpPerf 338 23 136 @('On (Recommended)','Off') 0
 
 Add-FieldLabel $grpPerf 'Rendering path:' 16 60 100
 $renderingPath = Add-Dropdown $grpPerf 120 57 354 @(
-    'ROV Compatibility (Recommended for NVIDIA/AMD)',
-    'Default'
+    'Default (Recommended: RTV on NVIDIA/AMD, ROV on Intel)',
+    'ROV Compatibility (heavier GPU load; fallback)'
 ) 0
 
 $tooltip.SetToolTip($frameRate, 'Unlocks 60 FPS gameplay with normalized cutscene timers, or locks to original 30 FPS.')
 $tooltip.SetToolTip($sync, 'Enables vertical sync to prevent screen tearing.')
-$tooltip.SetToolTip($renderingPath, 'Rasterizer Ordered Views (ROV) emulation ensures proper EDRAM blending on modern GPUs.')
+$tooltip.SetToolTip($renderingPath, 'Default lets the runtime pick by GPU vendor: host render targets (RTV) on NVIDIA/AMD, which is much lighter, and ROV on Intel. Force ROV only if Default shows rendering errors on your GPU.')
 
 # =========================================================================
 # Section 3: Startup & Cutscenes
@@ -300,7 +300,7 @@ if (Test-Path -LiteralPath $settingsPath) {
         if ($saved.VSync -is [bool]) { $sync.SelectedIndex = if ($saved.VSync) { 0 } else { 1 } }
         if ($saved.RenderScale -in @(1,2,3)) { $scale.SelectedIndex = [int]$saved.RenderScale - 1 }
         if ($has60 -and $saved.FrameRateMode) { $frameRate.SelectedIndex = if ($saved.FrameRateMode -eq 'Original') { 1 } else { 0 } }
-        if ($saved.RenderingPath -eq 'Default') { $renderingPath.SelectedIndex = 1 } else { $renderingPath.SelectedIndex = 0 }
+        if ($saved.RenderingPath -eq 'ROV') { $renderingPath.SelectedIndex = 1 } else { $renderingPath.SelectedIndex = 0 }
         if ($saved.PostEffect -eq 'none') { $effect.SelectedIndex = 1 } else { $effect.SelectedIndex = 0 }
         if ($saved.SkipIntroLogos -is [bool]) { $chkSkipLogos.Checked = $saved.SkipIntroLogos }
         if ($saved.SkipCutscenes -is [bool]) { $cutsceneEnabled.Checked = $saved.SkipCutscenes }
@@ -362,7 +362,7 @@ $play.Add_Click({
             RenderScale       = ($scale.SelectedIndex + 1)
             PostEffect        = (@('fxaa','none')[$effect.SelectedIndex])
             FrameRateMode     = (@('60','Original')[$frameRate.SelectedIndex])
-            RenderingPath     = (@('ROV','Default')[$renderingPath.SelectedIndex])
+            RenderingPath     = (@('Default','ROV')[$renderingPath.SelectedIndex])
             SkipIntroLogos    = $chkSkipLogos.Checked
             SkipCutscenes     = $cutsceneEnabled.Checked
             CutsceneSpeed     = $speedMap[$cutsceneSpeed.SelectedIndex]
