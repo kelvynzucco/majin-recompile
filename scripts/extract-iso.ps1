@@ -3,6 +3,11 @@ using namespace System.IO
 using namespace System.Text
 using namespace System.Collections.Generic
 
+param(
+  [string]$IsoPath,
+  [string]$OutputDir
+)
+
 $csharp = @'
 using System;
 using System.IO;
@@ -105,11 +110,6 @@ namespace IsoDumper {
 '@
 
 Add-Type -TypeDefinition $csharp
-
-param(
-  [string]$IsoPath,
-  [string]$OutputDir
-)
 
 if (-not $IsoPath -or -not $OutputDir) {
   Write-Host "Usage: .\extract-iso.ps1 -IsoPath <path-to-iso> -OutputDir <destination-folder>"
