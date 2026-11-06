@@ -128,4 +128,14 @@ if ($LASTEXITCODE -ne 0) {
     Check-Native 'D3D12 GPU optimizations and UI loop fix patch application'
 }
 
-Write-Host "[1.1 - 1.5] ReXGlue SDK v0.10.0 source cloned, 14 submodules initialized, and all patches applied successfully!"
+# 1.6: Apply SDL audio frequency-ratio patch (cutscene fast-forward audio)
+$audioTurboPatch = Join-Path $patchRoot 'sdl-audio-turbo-frequency.patch'
+git -C $source apply --reverse --check $audioTurboPatch 2>$null
+if ($LASTEXITCODE -ne 0) {
+    git -C $source apply --check $audioTurboPatch
+    Check-Native 'SDL audio turbo frequency patch check'
+    git -C $source apply $audioTurboPatch
+    Check-Native 'SDL audio turbo frequency patch application'
+}
+
+Write-Host "[1.1 - 1.6] ReXGlue SDK v0.10.0 source cloned, 14 submodules initialized, and all patches applied successfully!"

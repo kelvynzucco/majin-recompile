@@ -50,3 +50,9 @@ Fixes the startup shader pipeline initialization loop in `pipeline_cache.cpp` so
 4. **Native Anisotropic Filtering:** Restores `anisotropic_override = -1` in `texture/cache.cpp` (using native texture sampling instead of forced 4x AF).
 5. **Draw Scissor Optimization:** Enables `execute_unclipped_draw_vs_on_cpu_with_scissor = true` in `draw_extent_estimator.cpp` to prevent spurious EDRAM tile range ownership transfers during 3D gameplay.
 6. **Memexport Readback Disable:** Sets `readback_memexport = false` in `command_processor.cpp` to eliminate GPU-CPU pipeline stalls.
+
+This patch is applied after `release-frame-capture.patch` and `fps60.patch`. Its `command_processor.cpp` section therefore contains only the `readback_memexport` change; the frame pacer and Release frame counters come from those earlier patches. (A previous revision repeated them, so `prepare-sdk-source.ps1` failed on a clean checkout.)
+
+## SDL audio playback-ratio hook (`sdl-audio-turbo-frequency.patch`)
+
+Adds `rex::audio::SetPlaybackFrequencyRatio` / `GetPlaybackFrequencyRatio` and applies the ratio in the SDL audio callback with `SDL_SetAudioStreamFrequencyRatio`, clearing the queued stream when leaving fast-forward. `prototype-usa/src/cutscene.cpp` calls it for cutscene/dialogue fast-forward, so the game does not link without it. `prepare-sdk-source.ps1` applies it as step 1.6.
