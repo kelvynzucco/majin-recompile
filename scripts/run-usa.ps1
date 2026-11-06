@@ -5,6 +5,7 @@ param(
     $VSync = $true,
     [ValidateRange(1,3)][int]$RenderScale = 1,
     [ValidateSet('none','fxaa')][string]$PostEffect = 'none',
+    [ValidateSet('fsr','cas','bilinear')][string]$Upscaler = 'fsr',
     [ValidateSet('Default','ROV')][string]$RenderingPath = 'Default',
     [ValidateSet('Controller','KeyboardMouse')][string]$InputMode = 'KeyboardMouse',
     [ValidateRange(0.01,10)][double]$MouseSensitivity = 1.0,
@@ -68,6 +69,7 @@ $launchArgs = @(
     "--vsync=$($isVSync.ToString().ToLowerInvariant())",
     "--resolution_scale=$RenderScale",
     "--swap_post_effect=$PostEffect",
+    "--present_effect=$Upscaler",
     "--render_target_path_d3d12=$renderTarget",
     "--gpu_allow_invalid_fetch_constants=$allowInvalid"
 )

@@ -56,3 +56,7 @@ This patch is applied after `release-frame-capture.patch` and `fps60.patch`. Its
 ## SDL audio playback-ratio hook (`sdl-audio-turbo-frequency.patch`)
 
 Adds `rex::audio::SetPlaybackFrequencyRatio` / `GetPlaybackFrequencyRatio` and applies the ratio in the SDL audio callback with `SDL_SetAudioStreamFrequencyRatio`, clearing the queued stream when leaving fast-forward. `prototype-usa/src/cutscene.cpp` calls it for cutscene/dialogue fast-forward, so the game does not link without it. `prepare-sdk-source.ps1` applies it as step 1.6.
+
+## Built-in FSR 1 / CAS present effects (`builtin-fsr1-cas.patch`)
+
+The D3D12 and Vulkan presenters already contain precompiled AMD FidelityFX FSR 1 (EASU + RCAS) and CAS shaders, and their constants are computed in `presenter.h`. They were nevertheless compiled out unless the external FidelityFX SDK was configured, because the same `REX_HAS_FIDELITYFX_SDK` macro gates them. The patch defines that macro globally for every SDK target and re-exports it `PUBLIC` from `rexruntime`, so all binaries and SDK consumers see identical presenter class layouts. The temporal FSR 2/3 runtime still depends on the real SDK through `REX_HAS_FIDELITYFX_RUNTIME`, which stays off. `prepare-sdk-source.ps1` applies it as step 1.7; `present_effect` then accepts `fsr` and `cas`.

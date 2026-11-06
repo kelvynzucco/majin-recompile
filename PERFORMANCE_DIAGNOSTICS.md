@@ -150,3 +150,24 @@ GPU boosts to different clocks.
 ```powershell
 .\scripts\measure-gpu.ps1 -Label rtv-1080p -Seconds 60 -WaitForGame
 ```
+
+## Render scale and upscaling
+
+Render scale multiplies the internal resolution of every pass, and the EDRAM
+emulation work (resolves, format conversions and render-to-texture effects)
+grows with the pixel count. November 6, RTX 3060 Ti, Default path, 1920x1080
+window, 60 FPS mode, standing still in the same room for 40 s per run:
+
+| Settings | Avg power | Avg utilization | Avg graphics clock |
+| --- | ---: | ---: | ---: |
+| 1x + FXAA | 63 W | 37% | 1490 MHz |
+| 2x + FXAA | 199 W | 91% | 1895 MHz |
+| 2x, no FXAA | 198 W | 88% | 1895 MHz |
+
+2x held 60 FPS but ran at the card's 200 W power limit; FXAA cost is negligible.
+The launcher's **Upscaler** option (`run-usa.ps1 -Upscaler fsr|cas|bilinear`,
+runtime `present_effect`) applies AMD FSR 1 or CAS when the image is scaled to
+the window. FSR 1 is spatial, runs on any GPU vendor and adds little cost, so
+1x + FSR 1 is the lighter alternative to 2x. FSR 2/3/4 and DLSS are not
+offered: they need per-pixel motion vectors and depth that this game does not
+produce. `bilinear` keeps the original plain stretch.
