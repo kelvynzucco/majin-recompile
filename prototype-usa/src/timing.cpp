@@ -28,7 +28,8 @@ float ReadFloat(uint8_t* base, uint32_t address) {
 
 extern bool IsBackOrTabHeld();
 extern float GetCutsceneSpeedMultiplier();
-extern bool IsInGameCutsceneOrDialogue(uint8_t* base, uint32_t object);
+extern bool IsCutsceneOrDialogueActive();
+extern void DecrementCutsceneActiveFrames();
 
 // Below 0x821C0000: USA address is identical to PAL (0x82162238, caller LR 0x821616EC)
 REX_EXTERN(__imp__sub_82162238);
@@ -41,7 +42,7 @@ REX_EXTERN(sub_82162238) {
   const float rate = ReadFloat(base, object + kRate);
   float ratio = ReadFloat(base, object + kRatio);
 
-  const bool in_scene = IsInGameCutsceneOrDialogue(base, object);
+  const bool in_scene = IsCutsceneOrDialogueActive();
   const bool turbo = in_scene && IsBackOrTabHeld();
 
   if (turbo && std::isfinite(ratio)) {
@@ -53,6 +54,8 @@ REX_EXTERN(sub_82162238) {
   } else {
     rex::audio::SetPlaybackFrequencyRatio(1.0f);
   }
+
+  DecrementCutsceneActiveFrames();
 
   if (!Enabled()) return;
   main_object = rate == 30.0f && std::isfinite(ratio) && ratio >= 0 && ratio <= 64

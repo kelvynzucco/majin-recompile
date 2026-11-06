@@ -2,6 +2,7 @@
 // Majin and the Forsaken Kingdom (USA 0.0.0.2)
 // In-game 3D Cutscene & Dialogue Skip / Fast-Forward Hook
 #include <windows.h>
+#include <atomic>
 #include "generated/default/majin_pch.h"
 #include <rex/cvar.h>
 #include <rex/logging.h>
@@ -19,7 +20,24 @@ bool Enabled() {
   return enabled;
 }
 
+std::atomic<int> s_cutscene_active_frames{0};
+
 } // namespace
+
+void NotifyCutsceneOrDialogueActive() {
+  s_cutscene_active_frames.store(15, std::memory_order_relaxed);
+}
+
+bool IsCutsceneOrDialogueActive() {
+  return s_cutscene_active_frames.load(std::memory_order_relaxed) > 0;
+}
+
+void DecrementCutsceneActiveFrames() {
+  int cur = s_cutscene_active_frames.load(std::memory_order_relaxed);
+  if (cur > 0) {
+    s_cutscene_active_frames.store(cur - 1, std::memory_order_relaxed);
+  }
+}
 
 float GetCutsceneSpeedMultiplier() {
   if (!Enabled()) return 1.0f;
@@ -27,39 +45,6 @@ float GetCutsceneSpeedMultiplier() {
   if (spd < 2) return 2.0f;
   if (spd > 16) return 16.0f;
   return static_cast<float>(spd);
-}
-
-bool IsInGameCutsceneOrDialogue(uint8_t* base, uint32_t object) {
-  if (!base || !object || object < 0x10000 || object > 0x8FFFFFFF) return false;
-
-  // 1. Message / Dialogue active check (engine + 0x15140)
-  const uint32_t msg_mgr = REX_LOAD_U32(object + 0x15140);
-  if (msg_mgr >= 0x10000 && msg_mgr < 0x8FFFFFFF) {
-    const uint32_t msg_active = REX_LOAD_U32(msg_mgr + 168); // 0xA8
-    if (msg_active == 1) return true;
-  }
-
-  // 2. 3D Cutscene / Demo active check (engine + 0x15144)
-  const uint32_t demo_mgr = REX_LOAD_U32(object + 0x15144);
-  if (demo_mgr >= 0x10000 && demo_mgr < 0x8FFFFFFF) {
-    const uint32_t demo_obj = REX_LOAD_U32(demo_mgr);
-    if (demo_obj >= 0x10000 && demo_obj < 0x8FFFFFFF) {
-      const uint32_t demo_active = REX_LOAD_U32(demo_obj + 120);
-      if (demo_active != 0) return true;
-    }
-  }
-
-  // 3. Cinematic Camera event check (engine + 0x15128)
-  const uint32_t cam_mgr = REX_LOAD_U32(object + 0x15128);
-  if (cam_mgr >= 0x10000 && cam_mgr < 0x8FFFFFFF) {
-    const uint32_t cam_event = REX_LOAD_U32(cam_mgr + 0x51C0);
-    if (cam_event >= 0x10000 && cam_event < 0x8FFFFFFF) {
-      const uint32_t cam_active = REX_LOAD_U32(cam_event + 5936);
-      if (cam_active != 0) return true;
-    }
-  }
-
-  return false;
 }
 
 bool IsBackOrTabHeld() {
@@ -131,12 +116,38 @@ bool ShouldSkip() {
 } // namespace
 
 // =======================================================================
+// DIALOGUE / MESSAGE SYSTEM NOTIFICATIONS
+// =======================================================================
+
+// CHECK_END_MESSAGE (USA: 0x82183040)
+REX_EXTERN(__imp__sub_82183040);
+REX_EXTERN(sub_82183040) {
+  NotifyCutsceneOrDialogueActive();
+  __imp__sub_82183040(ctx, base);
+}
+
+// playMessageGetEnd (USA: 0x822355C8)
+REX_EXTERN(__imp__sub_822355C8);
+REX_EXTERN(sub_822355C8) {
+  NotifyCutsceneOrDialogueActive();
+  __imp__sub_822355C8(ctx, base);
+}
+
+// CAMERA_EVENT_CHECK (USA: 0x82181050)
+REX_EXTERN(__imp__sub_82181050);
+REX_EXTERN(sub_82181050) {
+  NotifyCutsceneOrDialogueActive();
+  __imp__sub_82181050(ctx, base);
+}
+
+// =======================================================================
 // 3D CUTSCENE (DEMO) SYSTEM HOOKS
 // =======================================================================
 
 // DEMO_END_CHECK (USA: 0x821836C0)
 REX_EXTERN(__imp__sub_821836C0);
 REX_EXTERN(sub_821836C0) {
+  NotifyCutsceneOrDialogueActive();
   if (ShouldSkip()) {
     ctx.r3.u64 = 1; // Signal demo end to scenario script
     return;
@@ -147,6 +158,7 @@ REX_EXTERN(sub_821836C0) {
 // DEMO_CAMERA_END_CHECK (USA: 0x82183778)
 REX_EXTERN(__imp__sub_82183778);
 REX_EXTERN(sub_82183778) {
+  NotifyCutsceneOrDialogueActive();
   if (ShouldSkip()) {
     ctx.r3.u64 = 1; // Signal camera demo end
     return;
@@ -157,6 +169,7 @@ REX_EXTERN(sub_82183778) {
 // setDemoGetEnd (USA: 0x822351D0)
 REX_EXTERN(__imp__sub_822351D0);
 REX_EXTERN(sub_822351D0) {
+  NotifyCutsceneOrDialogueActive();
   if (ShouldSkip()) {
     ctx.r3.u64 = 1; // Signal demo get end to script task
     return;
