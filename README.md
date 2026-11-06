@@ -59,11 +59,19 @@
 - **Result:** **99.93% of frame times locked at 60 FPS (`<= 16.6ms`)**.
 
 ### 6. Enhanced Native GUI Launcher
+- **Modern UI/UX Design:** Dark Slate cards with zero image layering dependencies or DPI scaling clipping.
 - **Resolution Output:** Selectable output between `720p` (`1280x720`), `1080p` (`1920x1080`), `1440p` (`2560x1440`), and `4K` (`3840x2160`).
 - **Internal Draw Scaling:** `1x` (native 720p), `2x` (1440p), and `3x` (4K).
-- **Rendering Backends:** Choose between **Default (RTV)** (recommended for speed) and **ROV Compatibility** (for GPUs requiring Pixel Shader Interlocks).
+- **Rendering Backends:** Choose between **ROV Compatibility** (recommended for NVIDIA/AMD EDRAM) and **Default (RTV)**.
 - **Input Profiles:** Controller (via SDL3 / XInput) and Keyboard + Mouse.
 - **Framerate:** Original (30 FPS) or 60 FPS mode.
+
+### 7. Synchronized In-Game Cutscene & Dialogue Fast-Forward
+- **Dynamic Audio Frequency Scaling via SDL3:** When holding `Select` / `Back` (gamepad) or `Tab` (keyboard), the audio stream scales playback frequency cleanly via `SDL_SetAudioStreamFrequencyRatio(stream, multiplier)`.
+- **Clock Delta Synchronization:** Delta time in `timing.cpp` scales synchronously by the exact same multiplier (`2x`, `4x`, `6x`, `8x`).
+- **Reactive Scenario Event Detection:** In-game dialogue (`CHECK_END_MESSAGE`), camera events, and 3D demo cutscenes dynamically notify the runtime when active. Fast-forward is strictly active during in-game cutscenes and dialogues, preventing any acceleration during normal free-roam gameplay or pre-rendered FMVs.
+- **Clean Voice Playback Restoration:** Speech finishes naturally in 1/Nth the time, the sound engine gracefully releases voice channels, and releasing the button restores 100% normal audio without voice muting.
+- **Configurable in Launcher:** Toggle on/off and selectable speed multiplier (`2x`, `4x (Default)`, `6x`, `8x`).
 
 ---
 
