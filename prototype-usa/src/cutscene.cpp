@@ -6,9 +6,10 @@
 #include "generated/default/majin_pch.h"
 #include <rex/cvar.h>
 #include <rex/logging.h>
+#include <rex/audio/audio_driver.h>
 
 REXCVAR_DEFINE_BOOL(majin_skip_cutscenes, true, "Gameplay",
-    "Allow skipping in-game cutscenes and dialogue by holding Select/Back on controller or Tab on keyboard");
+    "Allow fast-forwarding in-game cutscenes and dialogue by holding Select/Back on controller or Tab on keyboard");
 
 REXCVAR_DEFINE_INT32(majin_cutscene_speed, 4, "Gameplay",
     "In-game cutscene and dialogue fast-forward speed multiplier (2, 4, 6, 8)");
@@ -21,30 +22,41 @@ bool Enabled() {
 }
 
 std::atomic<int> s_cutscene_active_frames{0};
+std::atomic<int> s_turbo_cooldown_frames{0};
+std::atomic<int> s_continuous_turbo_frames{0};
+std::atomic<bool> s_must_release_button{false};
+
+constexpr int kMaxContinuousTurboFrames = 150; // Auto-stop limit (~5s real time)
+
+bool Span(uint32_t addr, uint32_t size) {
+  return addr >= 0x10000 && addr <= UINT32_MAX - size;
+}
+
+bool IsDemoNearingEnd(uint8_t* base) {
+  // 0x82C273D0 is the engine scenario manager root
+  const uint32_t r31 = REX_LOAD_U32(0x82C273D0);
+  if (!Span(r31, 0x15148)) return false;
+  const uint32_t r30 = r31 + 65536 + 20804; // r31 + 0x15144
+  const uint32_t r8 = REX_LOAD_U32(r30);
+  if (!Span(r8, 128)) return false;
+  const uint32_t r11 = REX_LOAD_U32(r8 + 120);
+  if (!Span(r11, 32)) return false;
+  const uint32_t r4 = REX_LOAD_U32(r11 + 20);
+  if (!Span(r4, 104)) return false;
+  const uint32_t state96 = REX_LOAD_U32(r4 + 96);
+  const uint32_t state92 = REX_LOAD_U32(r4 + 92);
+  // States 1 or 2 indicate main cutscene sequence has completed and outro/camera settle has begun
+  return (state96 == 1 || state96 == 2 || state92 == 1 || state92 == 2);
+}
 
 } // namespace
 
-void NotifyCutsceneOrDialogueActive() {
-  s_cutscene_active_frames.store(15, std::memory_order_relaxed);
-}
-
-bool IsCutsceneOrDialogueActive() {
-  return s_cutscene_active_frames.load(std::memory_order_relaxed) > 0;
-}
-
-void DecrementCutsceneActiveFrames() {
-  int cur = s_cutscene_active_frames.load(std::memory_order_relaxed);
-  if (cur > 0) {
-    s_cutscene_active_frames.store(cur - 1, std::memory_order_relaxed);
-  }
-}
-
-float GetCutsceneSpeedMultiplier() {
-  if (!Enabled()) return 1.0f;
-  const int32_t spd = rex::cvar::Query<int32_t>("majin_cutscene_speed");
-  if (spd < 2) return 2.0f;
-  if (spd > 16) return 16.0f;
-  return static_cast<float>(spd);
+void OnCutsceneOrDialogueEnded() {
+  s_cutscene_active_frames.store(0, std::memory_order_relaxed);
+  s_continuous_turbo_frames.store(0, std::memory_order_relaxed);
+  s_turbo_cooldown_frames.store(90, std::memory_order_relaxed); // ~3 seconds cooldown
+  s_must_release_button.store(true, std::memory_order_relaxed);
+  rex::audio::SetPlaybackFrequencyRatio(1.0f);
 }
 
 bool IsBackOrTabHeld() {
@@ -92,52 +104,80 @@ bool IsBackOrTabHeld() {
   return false;
 }
 
-namespace {
+bool IsTurboAllowed() {
+  if (!Enabled()) return false;
 
-bool ShouldSkip() {
-  static int hold_frames = 0;
-  static bool announced = false;
-  if (IsBackOrTabHeld()) {
-    hold_frames++;
-    if (hold_frames >= 5) { // Responsive skip after holding ~5 frames (~0.1s)
-      if (!announced) {
-        REXLOG_INFO("[Majin Skip] In-game scene/dialogue skip active (Select/Tab held)");
-        announced = true;
-      }
-      return true;
+  // Check button release latch
+  if (s_must_release_button.load(std::memory_order_relaxed)) {
+    if (!IsBackOrTabHeld()) {
+      s_must_release_button.store(false, std::memory_order_relaxed);
+    } else {
+      return false; // Still holding button from cutscene -> ignore during gameplay
     }
-  } else {
-    hold_frames = 0;
-    announced = false;
   }
-  return false;
+
+  // Check cooldown
+  if (s_turbo_cooldown_frames.load(std::memory_order_relaxed) > 0) {
+    return false;
+  }
+
+  // Must have cutscene or dialogue actively requesting frames
+  if (s_cutscene_active_frames.load(std::memory_order_relaxed) <= 0) {
+    return false;
+  }
+
+  // Auto-stop trigger: disengage after continuous turbo burst
+  if (s_continuous_turbo_frames.load(std::memory_order_relaxed) >= kMaxContinuousTurboFrames) {
+    s_must_release_button.store(true, std::memory_order_relaxed);
+    return false;
+  }
+
+  return true;
 }
 
-} // namespace
+void OnTurboFrameTick() {
+  s_continuous_turbo_frames.fetch_add(1, std::memory_order_relaxed);
+}
+
+void OnTurboDisengaged() {
+  s_continuous_turbo_frames.store(0, std::memory_order_relaxed);
+}
+
+void TickCutsceneTiming() {
+  int cd = s_turbo_cooldown_frames.load(std::memory_order_relaxed);
+  if (cd > 0) {
+    s_turbo_cooldown_frames.store(cd - 1, std::memory_order_relaxed);
+  }
+  int act = s_cutscene_active_frames.load(std::memory_order_relaxed);
+  if (act > 0) {
+    s_cutscene_active_frames.store(act - 1, std::memory_order_relaxed);
+  }
+}
+
+float GetCutsceneSpeedMultiplier() {
+  if (!Enabled()) return 1.0f;
+  const int32_t spd = rex::cvar::Query<int32_t>("majin_cutscene_speed");
+  if (spd < 2) return 2.0f;
+  if (spd > 16) return 16.0f;
+  return static_cast<float>(spd);
+}
 
 // =======================================================================
 // DIALOGUE / MESSAGE SYSTEM NOTIFICATIONS
 // =======================================================================
 
 // CHECK_END_MESSAGE (USA: 0x82183040)
+// Returns 0 while message is displayed/active, 1 when message has ended
 REX_EXTERN(__imp__sub_82183040);
 REX_EXTERN(sub_82183040) {
-  NotifyCutsceneOrDialogueActive();
   __imp__sub_82183040(ctx, base);
-}
-
-// playMessageGetEnd (USA: 0x822355C8)
-REX_EXTERN(__imp__sub_822355C8);
-REX_EXTERN(sub_822355C8) {
-  NotifyCutsceneOrDialogueActive();
-  __imp__sub_822355C8(ctx, base);
-}
-
-// CAMERA_EVENT_CHECK (USA: 0x82181050)
-REX_EXTERN(__imp__sub_82181050);
-REX_EXTERN(sub_82181050) {
-  NotifyCutsceneOrDialogueActive();
-  __imp__sub_82181050(ctx, base);
+  if (ctx.r3.u32 == 1) {
+    // Dialogue box finished
+    s_cutscene_active_frames.store(0, std::memory_order_relaxed);
+  } else {
+    // Dialogue box actively waiting/displaying
+    s_cutscene_active_frames.store(3, std::memory_order_relaxed);
+  }
 }
 
 // =======================================================================
@@ -145,34 +185,30 @@ REX_EXTERN(sub_82181050) {
 // =======================================================================
 
 // DEMO_END_CHECK (USA: 0x821836C0)
+// Returns 0 while cutscene is playing, 1 when cutscene has ended
 REX_EXTERN(__imp__sub_821836C0);
 REX_EXTERN(sub_821836C0) {
-  NotifyCutsceneOrDialogueActive();
-  if (ShouldSkip()) {
-    ctx.r3.u64 = 1; // Signal demo end to scenario script
-    return;
-  }
   __imp__sub_821836C0(ctx, base);
+  if (ctx.r3.u32 == 1) {
+    OnCutsceneOrDialogueEnded();
+  } else {
+    // Cutscene is running: check if nearing end (closing seconds trigger)
+    if (IsDemoNearingEnd(base)) {
+      OnCutsceneOrDialogueEnded();
+    } else {
+      s_cutscene_active_frames.store(3, std::memory_order_relaxed);
+    }
+  }
 }
 
 // DEMO_CAMERA_END_CHECK (USA: 0x82183778)
+// Returns 0 while cutscene camera is active, 1 when camera demo has ended
 REX_EXTERN(__imp__sub_82183778);
 REX_EXTERN(sub_82183778) {
-  NotifyCutsceneOrDialogueActive();
-  if (ShouldSkip()) {
-    ctx.r3.u64 = 1; // Signal camera demo end
-    return;
-  }
   __imp__sub_82183778(ctx, base);
-}
-
-// setDemoGetEnd (USA: 0x822351D0)
-REX_EXTERN(__imp__sub_822351D0);
-REX_EXTERN(sub_822351D0) {
-  NotifyCutsceneOrDialogueActive();
-  if (ShouldSkip()) {
-    ctx.r3.u64 = 1; // Signal demo get end to script task
-    return;
+  if (ctx.r3.u32 == 1) {
+    OnCutsceneOrDialogueEnded();
+  } else {
+    s_cutscene_active_frames.store(3, std::memory_order_relaxed);
   }
-  __imp__sub_822351D0(ctx, base);
 }
