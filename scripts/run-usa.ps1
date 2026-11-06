@@ -14,7 +14,7 @@ param(
     $SkipCutscenes = $true,
     [ValidateRange(2,16)][int]$CutsceneSpeed = 4,
     $SkipIntroLogos = $false,
-    [string]$GameDataRoot = 'C:\Users\kelvy\Desktop\Recomp\game-data-usa',
+    [string]$GameDataRoot = (Join-Path (Split-Path $PSScriptRoot -Parent) 'game-data-usa'),
     [switch]$Preview
 )
 $ErrorActionPreference = 'Stop'
@@ -29,7 +29,7 @@ $isFullscreen = ConvertTo-Bool $Fullscreen
 $isVSync = ConvertTo-Bool $VSync
 $isRecordPerf = ConvertTo-Bool $RecordPerformance
 
-$projectRoot = 'C:\Users\kelvy\Desktop\Recomp'
+$projectRoot = Split-Path $PSScriptRoot -Parent
 New-Item -ItemType Directory -Force -Path (Join-Path $projectRoot 'reports') | Out-Null
 
 if (-not (Test-Path (Join-Path $GameDataRoot 'default.xex'))) {
