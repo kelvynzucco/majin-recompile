@@ -74,6 +74,12 @@
 - **Clean Voice Playback Restoration:** Speech finishes naturally in 1/Nth the time, the sound engine gracefully releases voice channels, and releasing the button restores 100% normal audio without voice muting.
 - **Configurable in Launcher:** Toggle on/off and selectable speed multiplier (`2x`, `4x (Default)`, `6x`, `8x`).
 
+### 8. Vulkan Native Resolution & UI Mod (Experimental / Work in Progress)
+- **Autodesk Scaleform GFx Decoupling:** Architectural hooks in `scene_resolution.cpp` to decouple the Flash vector interface (`[0..1280] x [0..720]`) from 3D resolution scaling artifacts.
+- **High-Precision Frame Presentation Pacing:** Integrated waitable-timer frame pacing hooks (`vulkan_hooks.cpp`) based on the Forza Horizon PC recompilation architecture, aiming to eliminate GPU spikes and stabilize frametime at 16.6ms (60 FPS).
+- **FSR 1.0 & FXAA Presentation Upscaler:** Integrated AMD FidelityFX Super Resolution 1.0 (EASU edge-adaptive scaling + RCAS contrast-adaptive sharpening) and FXAA for presentation scaling.
+- **Current Development Status:** Vulkan backend support is currently experimental and under active diagnosis (Direct3D 12 remains the recommended stable default). Detailed telemetry, reverse engineering documentation, and post-mortem analysis are available in `docs/reverse-engineering/` and `VULKAN_NATIVE_RESOLUTION_MOD_PLAN.md`.
+
 ---
 
 ## Controls

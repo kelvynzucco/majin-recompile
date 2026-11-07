@@ -14,6 +14,8 @@
 #include <stdexcept>
 #include <string>
 #include "window_layout.h"
+#include "vulkan_hooks.h"
+#include "scene_resolution.h"
 #if defined(_WIN32)
 #ifndef NOMINMAX
 #define NOMINMAX
@@ -80,6 +82,35 @@ class MajinApp : public rex::ReXApp {
     rex::ui::ProcessKeyEvent(event);
   }
 
+  void ApplyGpuPluginDefaults() {
+    // Must be called AFTER LoadGpuPlugin so CVars registered inside
+    // rexgpu-xenos.dll exist in the global CVar registry.
+    const auto backend = rex::cvar::GetFlagByName("gpu_backend");
+    if (backend == "d3d12") {
+      rex::cvar::SetFlagByName("d3d12_allow_variable_refresh_rate_and_tearing", "false");
+    }
+    if (backend == "vulkan") {
+      auto rt_path = rex::cvar::GetFlagByName("render_target_path_vulkan");
+      if (rt_path.empty()) {
+        rex::cvar::SetFlagByName("render_target_path_vulkan", "fbo");
+      }
+      // Disable VK_KHR_dynamic_rendering by default so both FBO (host render
+      // targets + transfer render passes) and FSI (fragment shader interlock
+      // subpass dependencies) use Xenia's native VkRenderPass pipeline path.
+      rex::cvar::SetFlagByName("vulkan_dynamic_rendering", "false");
+    }
+    rex::cvar::SetFlagByName("vulkan_allow_present_mode_immediate", "false");
+    rex::cvar::SetFlagByName("vulkan_allow_present_mode_mailbox", "false");
+    rex::cvar::SetFlagByName("vulkan_allow_present_mode_fifo_relaxed", "false");
+    rex::cvar::SetFlagByName("vulkan_allow_present_mode_fifo_latest_ready", "true");
+    rex::cvar::SetFlagByName("vulkan_async_skip_incomplete_frames", "false");
+    rex::cvar::SetFlagByName("async_shader_compilation", "true");
+    if (rex::cvar::GetFlagByName("present_effect").empty()) {
+      rex::cvar::SetFlagByName("present_effect", "fsr");
+    }
+    rex::cvar::SetFlagByName("present_dither", "true");
+  }
+
   void OnPreSetup(rex::RuntimeConfig& config) override {
     if (!config.graphics && config.gpu_plugin.empty()) {
       config.gpu_plugin = "xenos";
@@ -88,19 +119,23 @@ class MajinApp : public rex::ReXApp {
       const auto backend = rex::cvar::GetFlagByName("gpu_backend");
       config.graphics = rex::system::LoadGpuPlugin(
           config.gpu_plugin, backend.empty() ? "any" : backend);
+      // Apply GPU plugin CVars now that rexgpu-xenos.dll is loaded and its
+      // CVars are registered, before SetupPresentation and ConstructRuntime.
+      ApplyGpuPluginDefaults();
+    }
+    majin::InitSceneResolution();
+  }
+
+  void OnPostSetup() override {
+    if (runtime()) {
+      majin::InstallVulkanHooks(runtime()->graphics_system());
     }
   }
 
   void OnPostInitLogging() override {
-    // Stability and pacing defaults adapted from Forza Horizon recompilation:
-    if (rex::cvar::GetFlagByName("gpu_backend") == "d3d12") {
-      rex::cvar::SetFlagByName("d3d12_allow_variable_refresh_rate_and_tearing", "false");
-    }
-    rex::cvar::SetFlagByName("vulkan_allow_present_mode_immediate", "false");
-    rex::cvar::SetFlagByName("vulkan_allow_present_mode_mailbox", "false");
-    rex::cvar::SetFlagByName("vulkan_allow_present_mode_fifo_relaxed", "false");
-    rex::cvar::SetFlagByName("vulkan_allow_present_mode_fifo_latest_ready", "true");
-    rex::cvar::SetFlagByName("async_shader_compilation", "true");
+    // Apply host/UI flags registered in rexruntime.dll; GPU plugin flags are
+    // applied in OnPreSetup() immediately after LoadGpuPlugin().
+    ApplyGpuPluginDefaults();
 
     // The SDK already timestamps guest GPU swap packets and supports buffered CSV.
     // Connect its writer before the GPU thread starts; no telemetry or UI overlay.

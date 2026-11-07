@@ -151,14 +151,14 @@ $sync = Add-Dropdown $grpPerf 338 23 136 @('On (Recommended)','Off') 0
 
 Add-FieldLabel $grpPerf 'Rendering path:' 16 60 100
 $renderingPath = Add-Dropdown $grpPerf 120 57 354 @(
-    'Direct3D 12 (Default RTV/ROV)',
+    'Direct3D 12 (Default RTV/ROV - Recommended)',
     'Direct3D 12 (Forced ROV)',
-    'Vulkan (Forza Horizon Backend - Smooth & Stable GPU)'
+    'Vulkan (Experimental - Em Investigação)'
 ) 0
 
 $tooltip.SetToolTip($frameRate, 'Unlocks 60 FPS gameplay with normalized cutscene timers, or locks to original 30 FPS.')
 $tooltip.SetToolTip($sync, 'Enables vertical sync to prevent screen tearing.')
-$tooltip.SetToolTip($renderingPath, 'Default lets the runtime pick by GPU vendor: host render targets (RTV) on NVIDIA/AMD, which is much lighter, and ROV on Intel. Force ROV only if Default shows rendering errors on your GPU.')
+$tooltip.SetToolTip($renderingPath, 'Direct3D 12 é o backend estável recomendado. Vulkan está em fase experimental e investigação técnica.')
 
 # =========================================================================
 # Section 3: Startup & Cutscenes

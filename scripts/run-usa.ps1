@@ -73,9 +73,17 @@ $launchArgs = @(
     "--resolution_scale=$RenderScale",
     "--swap_post_effect=$PostEffect",
     "--present_effect=$Upscaler",
-    "--render_target_path_d3d12=$renderTarget",
     "--gpu_allow_invalid_fetch_constants=$allowInvalid"
 )
+if ($isVulkan) {
+    $launchArgs += @(
+        '--render_target_path_vulkan=fbo',
+        '--vulkan_dynamic_rendering=false',
+        '--vulkan_async_skip_incomplete_frames=false'
+    )
+} else {
+    $launchArgs += "--render_target_path_d3d12=$renderTarget"
+}
 if ($isVSync -and -not $isVulkan) {
     $launchArgs += '--d3d12_allow_variable_refresh_rate_and_tearing=false'
 }

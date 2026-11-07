@@ -16,6 +16,8 @@ set(MAJIN_SOURCES
     src/diagnostics.cpp
     src/timing.cpp
     src/cutscene.cpp
+    src/vulkan_hooks.cpp
+    src/scene_resolution.cpp
 )
 
 if(WIN32)
@@ -25,6 +27,7 @@ else()
 endif()
 
 rexglue_setup_target(majin GPU_PLUGINS xenos)
+target_include_directories(majin PRIVATE "${CMAKE_PREFIX_PATH}/include/renderdoc")
 
 # Separate opt-in research build. Never enabled by the normal build script.
 option(MAJIN_1080P_STARTUP_PROBE "Probe engine startup dimensions; not validated 1080p" OFF)

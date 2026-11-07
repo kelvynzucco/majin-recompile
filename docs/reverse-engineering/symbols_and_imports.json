@@ -1,0 +1,65 @@
+{
+  "project": "Majin and the Forsaken Kingdom - Recomp USA (0.0.0.2)",
+  "generated_at": "2026-11-06",
+  "critical_symbols": {
+    "sub_82150000": {
+      "address": "0x82150000",
+      "file": "prototype-usa/generated/default/majin_recomp.0.cpp",
+      "role": "Display and Window Initialization",
+      "description": "Configures guest viewport base dimensions (1280x720), calls XNotifyPositionUI and initializes the primary display context via sub_82161F90."
+    },
+    "sub_824750E0": {
+      "address": "0x824750E0",
+      "file": "prototype-usa/generated/default/majin_recomp.59.cpp",
+      "role": "Main Frame Present & VdSwap Dispatcher",
+      "description": "Central render loop exit point. Prepares the primary command buffer, calls __imp__VdSwap (0x82ADE2D4), advances the frontbuffer ring and flushes GPU submissions."
+    },
+    "sub_82475748": {
+      "address": "0x82475748",
+      "file": "prototype-usa/generated/default/majin_recomp.124.cpp",
+      "role": "Frame Post-Process & Presentation Wrapper",
+      "description": "Executes post-scene passes (sub_8246C5A0, sub_82474CB0, sub_824684F0, sub_8246C4F0, sub_8246BAC0) before invoking sub_824750E0."
+    },
+    "sub_823DED70": {
+      "address": "0x823DED70",
+      "file": "prototype-usa/generated/default/majin_recomp.100.cpp",
+      "role": "Master Render Loop Frame Stepper",
+      "description": "Evaluates frame render flags, executes 3D pass and UI pass, then conditionally calls either sub_824750E0 or sub_82475748 based on frame state."
+    },
+    "sub_8247BB60": {
+      "address": "0x8247BB60",
+      "file": "prototype-usa/generated/default/majin_recomp.30.cpp",
+      "role": "Render Worker Synchronization & Swap",
+      "description": "Guards presentation under RtlEnterCriticalSection, checks pending buffer flags at context offset +10942, calls sub_824750D8 and sub_824750E0."
+    },
+    "sub_828D6980": {
+      "address": "0x828D6980",
+      "file": "prototype-usa/generated/default/majin_recomp.138.cpp",
+      "role": "Title & Main Menu State Machine Loop",
+      "description": "Manages SceneTitleLogo transitions, title menu idle updates, UI element rendering triggers, and user input polling."
+    },
+    "__imp__VdSwap": {
+      "address": "0x82ADE2D4",
+      "file": "prototype-usa/generated/default/majin_recomp.59.cpp",
+      "implementation": "tools/source/rexglue-sdk/src/kernel/xboxkrnl/xboxkrnl_video.cpp",
+      "role": "Kernel Video Swap Hook",
+      "description": "Packages the Direct3D 9 frontbuffer fetch constant and posts PM4_XE_SWAP packet to the GPU ringbuffer with width and height."
+    }
+  },
+  "gpu_cvars": {
+    "render_target_path_vulkan": {
+      "default": "",
+      "modes": {
+        "": "kHostRenderTargets (FBO) - lacks pixel shader interlock, breaks custom UI blends",
+        "fsi": "kPixelShaderInterlock (FSI) - full EDRAM buffer emulation via VK_EXT_fragment_shader_interlock"
+      }
+    },
+    "render_target_path_d3d12": {
+      "default": "",
+      "modes": {
+        "rov": "kPixelShaderInterlock (ROV) - Rasterizer Ordered Views EDRAM buffer",
+        "rtv": "kHostRenderTargets (RTV)"
+      }
+    }
+  }
+}

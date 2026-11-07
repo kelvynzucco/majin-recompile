@@ -1,5 +1,9 @@
 # 📋 Planejamento Estratégico: Mod C++ de Resolução 3D e Interface Nativa (Majin Recomp)
 
+> [!WARNING]
+> **Status Atual da Implementação (06/11/2026): FALHA PERSISTE / INVESTIGAÇÃO EM ABERTO.**  
+> Apesar das correções realizadas no hook C++ (`scene_resolution.cpp`), na inicialização do aplicativo (`majin_app.h`), nos scripts de execução (`run-usa.ps1`) e na biblioteca do backend (`rexgpu-xenos.dll`), o backend **Vulkan continua sem renderizar a imagem dos menus** (permanecem em tela preta) e, ao entrar in-game, **apenas alguns poucos objetos 3D são renderizados**. A modificação para resolução nativa com Vulkan **não funcionou** e necessita de nova bateria de investigação aprofundada.
+
 > **Objetivo Central:**  
 > Desenvolver um mod em C++ desacoplado no motor do jogo (*Game Republic Engine*) que preserve a interface e menus (HUD/UI) desenhados nativamente em 720p enquanto eleva a resolução da cena 3D (2x/1440p ou superior), viabilizando o uso estável e fluido do backend **Vulkan** nos mesmos moldes do projeto Forza Horizon.
 
@@ -7,7 +11,7 @@
 
 ## 🎯 Arquitetura de Execução Modular
 
-Para permitir que cada etapa seja executada e verificada de forma **independente e autossuficiente** (inclusive por diferentes agentes de IA ou em sessões distintas sem perda de contexto), o projeto foi dividido em **6 fases atômicas**:
+Para permitir que cada etapa seja executada e verificada de forma **independente e autossuficiente** (inclusive por diferentes agentes de IA ou em sessões distintas sem perda de contexto), o projeto foi dividido em fases atômicas:
 
 ```mermaid
 flowchart TD
@@ -16,6 +20,7 @@ flowchart TD
     Fase3 --> Fase4["Fase 4: Prototipagem do Hook C++ de Resolução"]
     Fase4 --> Fase5["Fase 5: Integração com o Backend Vulkan"]
     Fase5 --> Fase6["Fase 6: Otimização, Pacing e Validação In-Game"]
+    Fase6 --> Fase7["Fase 7: Auditoria Pós-Implementação & Correção da Tela Preta"]
 ```
 
 ---
@@ -69,7 +74,7 @@ Compreender como a engine proprietária da *Game Republic* divide o quadro (fram
     4. *Pós-processamento e iluminação (Bloom, Blur)*.
     5. *Renderização 2D / HUD*.
     6. *Swap / Present*.
-- **Saída / Evidência:** Documento `docs/reverse-engineering/render_frame_flow.md` detalhando o grafo de chamadas de cada etapa com endereços guest.
+- **Saída / Evidência:** Documento [`docs/reverse-engineering/render_frame_flow.md`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/docs/reverse-engineering/render_frame_flow.md) detalhando o grafo de chamadas de cada etapa com endereços guest.
 - **Critério de Conclusão:** Saber o endereço exato da função onde a geometria 3D termina e onde o 2D começa.
 
 #### Passo 2.2 — Mapeamento dos Render Targets e Superfícies EDRAM
@@ -79,7 +84,7 @@ Compreender como a engine proprietária da *Game Republic* divide o quadro (fram
     - Resoluções declaradas (ex.: 1280x720, buffers temporários de 640x360).
     - Formatos de superfície (ex.: k_8_8_8_8, k_16_16_16_16F).
     - Espaço ocupado na EDRAM física simulada (10 MB).
-- **Saída / Evidência:** Tabela estruturada de superfícies ativas do Majin (semelhante à tabela de 41 texturas do Forza Horizon).
+- **Saída / Evidência:** Tabela estruturada de superfícies ativas do Majin.
 - **Critério de Conclusão:** Identificar quais superfícies pertencem estritamente à cena 3D e quais são do buffer final de composição.
 
 ---
@@ -87,111 +92,94 @@ Compreender como a engine proprietária da *Game Republic* divide o quadro (fram
 ## 📌 Fase 3: Engenharia Reversa da Camada de Interface (HUD / Menus)
 
 ### Objetivo
-Isolar o subsistema responsável por desenhar textos, botões, ícones e menus, descobrindo por que o escalonamento geral do Vulkan os desalinha ou oculta.
+Isolar o subsistema responsável por desenhar textos, botões, ícones e menus, e verificar as funções D3D9 / Engine envolvidas.
 
 ### Passos Detalhados
 
-#### Passo 3.1 — Identificação do Motor de UI
+#### Passo 3.1 — Identificação do Motor de UI e Símbolos D3DDevice Reais
 - **Entrada:** Binário descompilado do jogo e referências a sprites/fontes.
-- **Ação:**
-  - Descobrir qual tecnologia de interface o Majin utiliza:
-    - *Scaleform / Flash* (`.gfx`, `.swf`)?
-    - Renderizador customizado baseado em quads 2D e fontes bitmap?
-  - Localizar a função raiz responsável pelo desenho da tela de título e menus principais (ex.: `sub_82XXXXXX`).
-- **Saída / Evidência:** Registro do endereço da função de renderização de UI e formato de dados dos vértices de texto/ícones.
-- **Critério de Conclusão:** Conhecer a função que prepara a projeção ortográfica e envia os quads 2D para o hardware.
+- **Saída / Evidência:** Documento [`docs/reverse-engineering/ui_engine_architecture.md`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/docs/reverse-engineering/ui_engine_architecture.md).
+- **✅ Identidades Reais Verificadas no Código Recompilado (`majin_recomp.*.cpp`):**
+  - `sub_82475748` (`majin_recomp.124.cpp`): **`D3DDevice_Present`** / End-of-Frame Swap.
+  - `sub_824684F0` (`majin_recomp.114.cpp`): **`D3DDevice_Resolve`** (`f1` = `ClearZ` para clear de profundidade).
+  - `sub_8246C4F0` (`majin_recomp.116.cpp`) & `sub_8246C208` (`majin_recomp.141.cpp`): **`D3DDevice_SetViewport`** (grava `Viewport.X` em `r3 + 12824`, `Viewport.Y` em `r3 + 12828`, `Viewport.Width` em `r3 + 12832`, `Viewport.Height` em `r3 + 12836`).
+  - `sub_8246BAC0` (`majin_recomp.85.cpp`): **`D3DDevice_SetScissorRect`** (faz clamp do `RECT` contra `[Viewport.X, Viewport.Y, Viewport.X + Width, Viewport.Y + Height]` e emite `PA_SC_WINDOW_SCISSOR_TL/BR`).
+  - `sub_82985580` (`majin_recomp.226.cpp`): **`CGameProject::RenderUI`** (entrada principal de renderização 2D/HUD).
 
-#### Passo 3.2 — Diagnóstico da Falha Visual no Vulkan
-- **Entrada:** Logs do Vulkan (`runtime-usa-*.log`) e código do `vulkan/render_target_cache.cpp`.
-- **Ação:**
-  - Cruzar as matrizes de projeção da UI com a transformação de coordenadas do Vulkan sob `--resolution_scale=2`.
-  - Descobrir se a UI:
-    - Está sendo desenhada em coordenadas 1280x720 em um render target de 2560x1440 sem esticar (ficando no canto superior esquerdo ou recortada pelo scissor); OU
-    - Ocorre um resolve EDRAM que o backend Vulkan descarta devido ao alinhamento de bloco.
-- **Saída / Evidência:** Relatório técnico do mecanismo exato de falha da UI no Vulkan.
-- **Critério de Conclusão:** Diagnóstico conclusivo do parâmetro que precisa ser mantido ou recalculado no hook.
+#### Passo 3.2 — Diagnóstico da Falha Visual (Tela Preta) no Vulkan
+- **Saída / Evidência:** Relatório técnico [`docs/reverse-engineering/vulkan_ui_failure_diagnosis.md`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/docs/reverse-engineering/vulkan_ui_failure_diagnosis.md) detalhando as 3 causas-raiz reais da tela preta.
 
 ---
 
 ## 📌 Fase 4: Prototipagem do Hook C++ de Resolução Nativa
 
 ### Objetivo
-Implementar o módulo em C++ nativo integrado ao Majin Recomp para desacoplar as matrizes/viewports 3D da camada 2D.
+Implementar o módulo em C++ nativo integrado ao Majin Recomp (`scene_resolution.h` / `scene_resolution.cpp`) sem corromper o estado interno do `D3DDevice`.
 
 ### Passos Detalhados
 
-#### Passo 4.1 — Criação da Estrutura do Módulo de Hook
-- **Entrada:** `prototype-usa/src/`.
-- **Ação:**
-  - Criar o cabeçalho e implementação:
-    - `prototype-usa/src/hooks/scene_resolution.h`
-    - `prototype-usa/src/hooks/scene_resolution.cpp`
-  - Registrar a chamada de interceptação no `prototype-usa/src/majin_app.h` ou via injeção de thunk no `prototype-usa/majin_manifest.toml`.
-- **Saída / Evidência:** Arquivos criados compilando limpos no projeto sem alterar o comportamento inicial.
-- **Critério de Conclusão:** Compilação com `build-usa.ps1` executada com sucesso com o novo arquivo de hook registrado.
-
-#### Passo 4.2 — Implementação da Proteção do Viewport de UI
-- **Entrada:** Endereços descobertos na Fase 3.
-- **Ação:**
-  - Interceptar a rotina de renderização da UI:
-    - Antes de desenhar os quads 2D: restaurar ou fixar o Viewport e Scissor em `1280x720` nativo.
-    - Assegurar que os buffers de coordenadas de vértices da UI não sofram a multiplicação errática do emulador.
-- **Saída / Evidência:** Código C++ que força o viewport da interface a permanecer estável independentemente do backend.
-- **Critério de Conclusão:** Os elementos da UI passam a ser emitidos dentro da área visível correta.
+#### Passo 4.1 & 4.2 — Estrutura e Hooks Seguros em `scene_resolution.cpp`
+- **Arquivos:** [`prototype-usa/src/scene_resolution.h`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/prototype-usa/src/scene_resolution.h) e [`prototype-usa/src/scene_resolution.cpp`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/prototype-usa/src/scene_resolution.cpp).
+- **✅ Correção Aplicada:**
+  - Removidas as escritas destrutivas em `sub_8246BAC0`, `sub_8246C4F0` e `sub_824684F0` que zeravam o `PA_SC_WINDOW_SCISSOR` (`(1280, 720)..(1280, 720)`).
+  - Mantidos hooks limpos de telemetria em `sub_82475748` (`D3DDevice_Present`) e `sub_82985580` (`CGameProject::RenderUI`), delegando o escalonamento de viewport/scissor e coordenadas 2D (`vport_xy_scale_enable = false`) para `draw_util::GetHostViewportInfo` do próprio ReXGlue SDK.
 
 ---
 
-## 📌 Fase 5: Integração com o Backend Vulkan nos Moldes do Forza
-
-### Objetivo
-Alinhar as flags de inicialização do Vulkan, swapchain e pipeline cache do Majin com as mesmas técnicas de estabilidade comprovadas do Forza Horizon.
+## 📌 Fase 5 & 6: Integração com Backend Vulkan, Pacing e Validação
 
 ### Passos Detalhados
-
-#### Passo 5.1 — Configuração de Swapchain e Present Mode Vulkan
-- **Entrada:** `prototype-usa/src/majin_app.h` e `scripts/run-usa.ps1`.
-- **Ação:**
-  - Configurar os modos estáveis verificados no Forza:
-    - `vulkan_allow_present_mode_fifo_latest_ready = true`
-    - `vulkan_allow_present_mode_immediate = false`
-    - `vulkan_allow_present_mode_mailbox = false`
-  - Implementar suporte ao pipeline cache persistente (`vulkan_store_pipeline_cache = true`) para eliminar stutters na primeira execução.
-- **Saída / Evidência:** Inicialização do Vulkan registrando swapchain no modo FIFO Latest Ready (código 1000361000) nos logs.
-- **Critério de Conclusão:** Zero stutters de recompilação de pipelines após a primeira corrida.
-
-#### Passo 5.2 — Upscaling e Apresentação (FSR / Post-Effect)
-- **Entrada:** Parâmetros de display do ReXGlue.
-- **Ação:**
-  - Integrar o FSR 1.0 ou CAS no estágio final de apresentação sobre o buffer composto, garantindo nitidez sem custo de sobrecarga de EDRAM.
-- **Saída / Evidência:** Jogo renderizando a cena 3D nítida com HUD nativo limpo na janela em tela cheia/janela.
-- **Critério de Conclusão:** Imagem de alta fidelidade visual em 1080p/1440p com textos perfeitamente legíveis.
+- **Arquivos:** [`prototype-usa/src/majin_app.h`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/prototype-usa/src/majin_app.h), [`prototype-usa/src/vulkan_hooks.cpp`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/prototype-usa/src/vulkan_hooks.cpp) e [`scripts/run-usa.ps1`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/scripts/run-usa.ps1).
+- **✅ Configuração Corrigida e Validada:**
+  - `ApplyGpuPluginDefaults()` invocado em `MajinApp::OnPreSetup` **imediatamente após** `rex::system::LoadGpuPlugin`, garantindo que todas as CVars registradas por `rexgpu-xenos.dll` (`vulkan_async_skip_incomplete_frames`, `render_target_path_vulkan`, `vulkan_allow_present_mode_*`) já existam no registro global quando `SetFlagByName` é chamado.
+  - `render_target_path_vulkan = "fbo"` (`kHostRenderTargets`, equivalente ao caminho padrão do D3D12) e `vulkan_dynamic_rendering = "false"` aplicados tanto em `majin_app.h` quanto em `scripts/run-usa.ps1`, além de corrigidos diretamente na `rexgpu-xenos.dll` (`tools/source/rexglue-sdk/src/graphics/vulkan/`).
+  - `vulkan_async_skip_incomplete_frames = "false"` aplicado tanto em código quanto via CLI em [`scripts/run-usa.ps1`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/scripts/run-usa.ps1).
+  - FSR 1.0 (`present_effect = "fsr"`) e pacing de apresentação (`vulkan_hooks.cpp`) ativos.
 
 ---
 
-## 📌 Fase 6: Otimização, Pacing e Validação In-Game
+## 📌 Fase 7: Auditoria Pós-Implementação, Histórico de Correções e Status Atual (06/11/2026)
 
-### Objetivo
-Medir métricas de frame pacing, uso de GPU no Windows Task Manager/RivaTuner e verificar a ausência de picos de 100%.
+### ⚠️ Status Atual: O Problema Persiste (Mod Vulkan Não Funcionou)
+Após todos os ajustes aplicados no código do executável (`prototype-usa`), nos scripts de lançamento e na biblioteca `rexgpu-xenos.dll`, o usuário reportou que **ao iniciar pelo launcher no modo Vulkan, o menu continua sem imagem renderizada (tela preta) e in-game apenas poucos objetos 3D são desenhados**. Portanto, a modificação para resolução nativa com backend Vulkan permanece **não funcional e em aberto**.
 
-### Passos Detalhados
+---
 
-#### Passo 6.1 — Telemetria de Frame Timing e Consumo de GPU
-- **Entrada:** Flag `--majin_record_performance=true` e gravação de CSV.
-- **Ação:**
-  - Executar benchmark de 3 minutos navegando pelos menus, cutscene inicial e gameplay no primeiro cenário jogável.
-  - Avaliar:
-    - Percentual de uso de GPU (deve manter-se na faixa de 40%–60% contínuos em uma RTX 3060 Ti).
-    - Variação de frametime (desvio padrão < 0.5 ms para 60 FPS travados a 16.6 ms).
-- **Saída / Evidência:** Arquivo `reports/vulkan-performance-validation.csv` e gráfico de estabilidade.
-- **Critério de Conclusão:** Uso de GPU perfeitamente reto e sem picos de 100% no Task Manager.
+### Resumo de Todas as Modificações e Tentativas de Correção Realizadas
 
-#### Passo 6.2 — Atualização do Launcher e Documentação
-- **Entrada:** `scripts/launcher.ps1`, `README.md`.
-- **Ação:**
-  - Configurar a opção do Vulkan no launcher como modo nativo oficial e recomendável.
-  - Atualizar documentação técnica das alterações efetuadas.
-- **Saída / Evidência:** Launcher atualizado e testado via `-ValidateOnly`.
-- **Critério de Conclusão:** Usuário consegue alternar entre os modos com 1 clique e jogar perfeitamente.
+1. **Correção do Hook de Resolução (`prototype-usa/src/scene_resolution.cpp`)**:
+   - **Causa diagnosticada**: O protótipo inicial interceptava `sub_8246BAC0` (`D3DDevice_SetScissorRect`) e escrevia `1280.0f` e `720.0f` nos offsets `r3 + 12824` e `r3 + 12828`. Na arquitetura do `D3DDevice`, esses campos são `Viewport.X` e `Viewport.Y` (e não Width/Height). Isso deslocava a área de clamp para `(1280, 720)`, colapsando o scissor para `(1280, 720)..(1280, 720)` (área `0x0`) e descartando 100% dos pixels na tela.
+   - **Ação**: Foram removidos todos os hooks destrutivos em `sub_8246BAC0`, `sub_8246C4F0` (`SetViewport`) e `sub_824684F0` (`Resolve`). O arquivo foi reduzido a telemetria segura no `D3DDevice_Present` (`sub_82475748`).
+
+2. **Ajustes de Configuração no App e Scripts (`majin_app.h` e `scripts/run-usa.ps1`)**:
+   - Movida a chamada de `ApplyGpuPluginDefaults()` para executar imediatamente após `rex::system::LoadGpuPlugin` em `OnPreSetup`, evitando que CVars da GPU fossem rejeitadas (`kRejected`) por não estarem registradas antes do carregamento da DLL.
+   - Configurado `render_target_path_vulkan = "fbo"` (`kHostRenderTargets`, correspondente ao caminho padrão do D3D12) e adicionado `--vulkan_dynamic_rendering=false` para evitar incompatibilidade com subpasses e attachments.
+   - Forçado `--vulkan_async_skip_incomplete_frames=false` para evitar supressão de apresentação de frames.
+
+3. **Intervenções no Código-Fonte do SDK Vulkan (`tools/source/rexglue-sdk/src/graphics/vulkan/`)**:
+   - `command_processor.cpp`:
+     - Alterado o valor padrão de `vulkan_dynamic_rendering` para `false`.
+     - Na sobrecarga de 4 argumentos de `SubmitBarriersAndEnterRenderTargetCacheRenderPass`, ajustada a verificação para que `current_framebuffer_` não seja reutilizado em views de transferência `UINT`.
+     - Inserido re-bind de pipeline (`CmdVkBindPipeline`) ao entrar em novo render pass para evitar perda de estado do guest graphics pipeline.
+   - `render_target_cache.cpp`:
+     - Adicionado `command_processor_.EndRenderPass()` ao final de `PerformTransfersAndResolveClears` para encerrar explicitamente a passada de transferência `UINT`.
+     - Corrigida a inicialização de `sType` em `GetLastUpdateRenderingAttachments`.
+     - Corrigida a passagem de `msaa_samples` em `GetTransferPipelines`.
+   - `rexgpu-xenos.dll` foi recompilada em Release e copiada para `tools/sdk/win-amd64/bin/` e `prototype-usa/out/build/win-amd64-release/`.
+   - Caches de pipelines e shaders Vulkan em `private/runtime-usa/cache/vulkan-vulkan/` foram limpos.
+
+---
+
+### Diagnóstico de Pendências para a Próxima Sessão
+Como a falha no Vulkan persiste (menu invisível / cena 3D incompleta), os seguintes pontos precisam ser investigados a fundo na retomada dos trabalhos:
+1. **Divergências no Tradutor de Shaders SPIR-V vs DXBC**:
+   - Verificar se as rotinas de interpolação de vértices e system constants (`SpirvShaderTranslator`) para o motor da Game Republic diferem do backend D3D12 (ex.: `vport_xy_scale_enable`, constantes de fetch ou alinhamento de uniform buffers).
+2. **Formato e Aliasing de Texturas no Vulkan**:
+   - Comparar os logs de `texture_cache.cpp` entre D3D12 e Vulkan para o título `4E4D0816` (possíveis falhas na decodificação de texturas 2D dos menus ou texturas 3D/cubemap).
+3. **Mecanismo de Render Target `fsi` vs `fbo`**:
+   - Investigar se o jogo depende estritamente do modelo EDRAM do Xbox 360 (que em D3D12 usa ROV por padrão ou RTV com direct resolve). Testar se o path `fsi` (Fragment Shader Interlock) com os subpass dependencies corrigidos consegue desenhar a UI que o `fbo` falha.
+4. **Scissor e Viewport Host**:
+   - Inspecionar diretamente via RenderDoc ou dump de comandos Vulkan as chamadas `vkCmdSetViewport` e `vkCmdSetScissor` para confirmar as coordenadas emitidas durante o desenho do menu.
 
 ---
 
@@ -199,15 +187,10 @@ Medir métricas de frame pacing, uso de GPU no Windows Task Manager/RivaTuner e 
 
 | Fase | Título | Dependência | Status | Responsável |
 | :--- | :--- | :--- | :--- | :--- |
-| **1** | Setup & Instrumentação REA | Nenhuma | ⏳ Pronto para Iniciar | Agente / Usuário |
-| **2** | Mapeamento da Engine & Render Passes | Fase 1 | ⏳ Pendente | Agente |
-| **3** | Engenharia Reversa da UI (Menus/HUD) | Fase 2 | ⏳ Pendente | Agente |
-| **4** | Prototipagem do Hook C++ de Resolução | Fase 3 | ⏳ Pendente | Agente |
-| **5** | Integração com Backend Vulkan | Fase 4 | ⏳ Pendente | Agente |
-| **6** | Otimização, Pacing e Validação | Fase 5 | ⏳ Pendente | Agente |
-
----
-
-> [!IMPORTANT]
-> **Regra de Transição entre Passos:**  
-> Cada passo produz um artefato claro (código, JSON de símbolos ou relatório técnico). Se outro modelo de IA ou sessão retomar o trabalho, basta consultar o arquivo gerado pelo passo anterior e executar a ação do passo subsequente, sem necessidade de reprocessar conversas anteriores.
+| **1** | Setup & Instrumentação REA | Nenhuma | ✅ Concluída | Agente |
+| **2** | Mapeamento da Engine & Render Passes | Fase 1 | ✅ Concluída | Agente |
+| **3** | Engenharia Reversa da UI (Menus/HUD) | Fase 2 | ✅ Concluída e Auditada | Agente |
+| **4** | Prototipagem do Hook C++ de Resolução | Fase 3 | ⚠️ Parcial / Hooks Destrutivos Removidos | Agente |
+| **5** | Integração com Backend Vulkan | Fase 4 | ❌ Falha Persiste (Menu Preto / Objetos Faltando) | Agente |
+| **6** | Otimização, Pacing e Validação | Fase 5 | ⏸️ Bloqueada pela Fase 5 | Agente |
+| **7** | Auditoria Pós-Implementação & Fix | Fase 6 | ⚠️ Em Aberto (Investigação Pendente) | Agente |
